@@ -1,0 +1,720 @@
+"use client"
+
+import type React from "react"
+
+import { useState, useRef, useEffect } from "react"
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+  DragOverlay,
+  useDroppable,
+} from "@dnd-kit/core"
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { createPortal } from "react-dom"
+import { TaskItem } from "./task-item"
+import { SortableTaskItem } from "./sortable-task-item"
+import {
+  Plus,
+  Calendar,
+  Tag,
+  Clock,
+  Check,
+  Copy,
+  Trash,
+  ArrowRightLeft,
+  Share2,
+  Inbox,
+  Search,
+  ListFilter,
+  Undo2,
+  Redo2,
+  CircleCheckBig,
+  CirclePause,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+  ContextMenuShortcut,
+} from "@/components/ui/context-menu"
+import { useTaskContext } from "./task-context"
+import { useDragContext } from "./drag-context"
+import { TagSelectorDialog } from "./tag-selector-dialog"
+import { ModelessDatePicker } from "./modeless-date-picker"
+import { TaskConversionDialog } from "./task-conversion-dialog"
+import { TaskSharingDialog } from "./task-sharing-dialog"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { format } from "date-fns"
+
+export interface Task {
+  id: string
+  content: string
+  checked: boolean
+  dueDate?: string
+  flagged?: boolean
+  tags?: string[]
+}
+
+interface TaskListProps {
+  initialTasks: Task[]
+  title?: string
+  showHeader?: boolean
+}
+
+// Create a special ID for the bottom drop area
+const BOTTOM_DROP_AREA_ID = "bottom-drop-area"
+
+// Bottom drop area component that integrates with DnD Kit
+function BottomDropArea() {
+  const { setNodeRef, isOver } = useDroppable({
+    id: BOTTOM_DROP_AREA_ID,
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`h-16 w-full transition-colors rounded-md my-4 mx-8 ${
+        isOver ? "bg-gray-100 border-2 border-dashed border-gray-300" : ""
+      }`}
+      data-bottom-drop-area
+    />
+  )
+}
+
+export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: TaskListProps) {
+  const { duplicateTask, updateTaskDueDate, deleteTask, setTaskTags } = useTaskContext()
+  const { selectedTaskIds, setSelectedTaskIds, isMultiDragging } = useDragContext()
+  const [tasks, setTasks] = useState<Task[]>(initialTasks)
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [contextMenuTaskId, setContextMenuTaskId] = useState<string | null>(null)
+  const [tagSelectorOpen, setTagSelectorOpen] = useState(false)
+  const [selectedTaskTags, setSelectedTaskTags] = useState<string[]>([])
+  const [isConversionDialogOpen, setIsConversionDialogOpen] = useState(false)
+  const [isSharingDialogOpen, setIsSharingDialogOpen] = useState(false)
+  const lastSelectedRef = useRef<string | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null)
+  const [closingTaskId, setClosingTaskId] = useState<string | null>(null)
+  const [containerWidth, setContainerWidth] = useState<number | null>(null)
+
+  // Date picker state
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
+  const [datePickerAction, setDatePickerAction] = useState<"dueDate" | "defer">("dueDate")
+  const [datePickerPosition, setDatePickerPosition] = useState({ x: 0, y: 0 })
+
+  // Update tasks when initialTasks changes
+  useEffect(() => {
+    setTasks(initialTasks)
+  }, [initialTasks])
+
+  // Measure container width for consistent drag overlay sizing
+  useEffect(() => {
+    if (containerRef.current) {
+      const updateWidth = () => {
+        if (containerRef.current) {
+          const width = containerRef.current.getBoundingClientRect().width
+          setContainerWidth(width)
+        }
+      }
+
+      updateWidth()
+      window.addEventListener("resize", updateWidth)
+      return () => window.removeEventListener("resize", updateWidth)
+    }
+  }, [])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5, // Reduced distance for easier activation
+        tolerance: 5, // Added tolerance
+        delay: 0, // No delay
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
+
+  // Handle keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't handle shortcuts when editing
+      if (editingId) return
+
+      // Select all tasks with Ctrl/Cmd+A
+      if ((e.ctrlKey || e.metaKey) && e.key === "a") {
+        e.preventDefault()
+        setSelectedTaskIds(new Set(tasks.map((task) => task.id)))
+      }
+
+      // Delete selected tasks with Delete key
+      if (e.key === "Delete" && selectedTaskIds.size > 0) {
+        e.preventDefault()
+        handleContextMenuAction("delete")
+      }
+
+      // Mark selected tasks as complete with Ctrl/Cmd+Enter
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && selectedTaskIds.size > 0) {
+        e.preventDefault()
+        handleContextMenuAction("complete")
+      }
+
+      // Add task with Space key when not editing
+      if (e.key === " " && !editingId && document.activeElement?.tagName !== "INPUT") {
+        e.preventDefault()
+        handleAddTask()
+      }
+
+      // Expand task with Enter key when a task is selected
+      if (e.key === "Enter" && selectedTaskIds.size === 1 && !editingId) {
+        e.preventDefault()
+        const taskId = Array.from(selectedTaskIds)[0]
+        handleTaskExpand(taskId)
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [tasks, selectedTaskIds, editingId, expandedTaskId, setSelectedTaskIds])
+
+  // Handle closing animation completion
+  useEffect(() => {
+    if (closingTaskId) {
+      const timer = setTimeout(() => {
+        setExpandedTaskId(null)
+        setClosingTaskId(null)
+      }, 500) // Match animation duration
+      return () => clearTimeout(timer)
+    }
+  }, [closingTaskId])
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string)
+
+    // If dragging a selected task, all selected tasks should move
+    if (selectedTaskIds.has(event.active.id as string)) {
+      // We'll handle this in handleDragEnd
+      console.log("Dragging a selected task. Selected tasks:", Array.from(selectedTaskIds))
+    } else {
+      // If dragging an unselected task, deselect all and select only this one
+      setSelectedTaskIds(new Set([event.active.id as string]))
+      console.log("Dragging an unselected task. Selecting only:", event.active.id)
+    }
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    console.log("Drag end:", { active, over, selectedTaskIds: Array.from(selectedTaskIds) })
+
+    // Handle dropping at the bottom drop area
+    if (over && over.id === BOTTOM_DROP_AREA_ID) {
+      setTasks((items) => {
+        // If we're moving multiple selected tasks
+        if (selectedTaskIds.has(active.id as string) && selectedTaskIds.size > 1) {
+          // Get all selected tasks in their original order
+          const selectedTasksWithIndices = items
+            .map((task, index) => ({ task, index }))
+            .filter(({ task }) => selectedTaskIds.has(task.id))
+            .sort((a, b) => a.index - b.index)
+
+          const selectedTasks = selectedTasksWithIndices.map(({ task }) => task)
+
+          // Get all unselected tasks
+          const unselectedTasks = items.filter((task) => !selectedTaskIds.has(task.id))
+
+          // Create the new array with selected tasks at the end
+          console.log("Moving multiple tasks to bottom:", {
+            selectedTasks: selectedTasks.map((t) => t.id),
+            unselectedTasks: unselectedTasks.map((t) => t.id),
+            result: [...unselectedTasks, ...selectedTasks].map((t) => t.id),
+          })
+
+          return [...unselectedTasks, ...selectedTasks]
+        } else {
+          // Moving a single task to the end
+          const oldIndex = items.findIndex((item) => item.id === active.id)
+          const newItems = [...items]
+          const [movedItem] = newItems.splice(oldIndex, 1)
+          newItems.push(movedItem)
+
+          console.log("Moving single task to bottom:", {
+            taskId: active.id,
+            from: oldIndex,
+            to: "end",
+            result: newItems.map((t) => t.id),
+          })
+
+          return newItems
+        }
+      })
+
+      setActiveId(null)
+      return
+    }
+
+    if (over && active.id !== over.id) {
+      setTasks((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id)
+        const newIndex = items.findIndex((item) => item.id === over.id)
+
+        // If we're moving multiple selected tasks
+        if (selectedTaskIds.has(active.id as string) && selectedTaskIds.size > 1) {
+          // Get all selected tasks in their original order
+          const selectedTasksWithIndices = items
+            .map((task, index) => ({ task, index }))
+            .filter(({ task }) => selectedTaskIds.has(task.id))
+            .sort((a, b) => a.index - b.index)
+
+          const selectedTasks = selectedTasksWithIndices.map(({ task }) => task)
+
+          // Get all unselected tasks
+          const unselectedTasks = items.filter((task) => !selectedTaskIds.has(task.id))
+
+          // Determine the insertion point
+          let insertAt = unselectedTasks.findIndex((task) => task.id === over.id)
+          if (insertAt === -1) insertAt = unselectedTasks.length
+
+          // Create the new array with selected tasks inserted at the right position
+          const newItems = [...unselectedTasks]
+          newItems.splice(insertAt, 0, ...selectedTasks)
+
+          console.log("Reordering multiple tasks:", {
+            selectedTasks: selectedTasks.map((t) => t.id),
+            insertAt,
+            newOrder: newItems.map((t) => t.id),
+          })
+
+          return newItems
+        } else {
+          // Moving a single task
+          console.log("Reordering single task:", {
+            taskId: active.id,
+            from: oldIndex,
+            to: newIndex,
+          })
+          return arrayMove(items, oldIndex, newIndex)
+        }
+      })
+    }
+
+    setActiveId(null)
+  }
+
+  const handleToggleTask = (id: string) => {
+    setTasks((prevTasks) => prevTasks.map((task) => (task.id === id ? { ...task, checked: !task.checked } : task)))
+  }
+
+  const handleTaskSelect = (id: string, event: React.MouseEvent) => {
+    // Don't select when editing
+    if (editingId) return
+
+    // Handle shift+click for range selection
+    if (event.shiftKey && lastSelectedRef.current) {
+      const taskIds = tasks.map((task) => task.id)
+      const currentIndex = taskIds.indexOf(id)
+      const lastIndex = taskIds.indexOf(lastSelectedRef.current)
+
+      if (currentIndex !== -1 && lastIndex !== -1) {
+        const start = Math.min(currentIndex, lastIndex)
+        const end = Math.max(currentIndex, lastIndex)
+
+        const rangeIds = taskIds.slice(start, end + 1)
+
+        setSelectedTaskIds((prev) => {
+          const newSelection = new Set(prev)
+          rangeIds.forEach((id) => newSelection.add(id))
+          return newSelection
+        })
+
+        console.log("Shift-click selection:", {
+          range: rangeIds,
+          from: lastSelectedRef.current,
+          to: id,
+        })
+      }
+    }
+    // Handle ctrl/cmd+click for toggling selection
+    else if (event.ctrlKey || event.metaKey) {
+      setSelectedTaskIds((prev) => {
+        const newSelection = new Set(prev)
+        if (newSelection.has(id)) {
+          newSelection.delete(id)
+        } else {
+          newSelection.add(id)
+        }
+        return newSelection
+      })
+
+      console.log("Ctrl/Cmd-click selection toggle:", id)
+    }
+    // Regular click - select only this task
+    else {
+      setSelectedTaskIds(new Set([id]))
+      console.log("Single selection:", id)
+    }
+
+    lastSelectedRef.current = id
+  }
+
+  const handleContextMenuOpen = (taskId: string, event: React.MouseEvent) => {
+    // Set the task that opened the context menu
+    setContextMenuTaskId(taskId)
+
+    // Make sure the task is selected
+    if (!selectedTaskIds.has(taskId)) {
+      setSelectedTaskIds(new Set([taskId]))
+    }
+
+    // Store the position for the date picker
+    setDatePickerPosition({ x: event.clientX, y: event.clientY })
+  }
+
+  const handleContextMenuClose = () => {
+    // Clear the context menu task when the menu closes
+    setContextMenuTaskId(null)
+  }
+
+  const handleContextMenuAction = (action: string) => {
+    switch (action) {
+      case "delete":
+        // Delete selected tasks
+        selectedTaskIds.forEach((id) => deleteTask(id))
+        setSelectedTaskIds(new Set())
+        break
+      case "complete":
+        setTasks(tasks.map((task) => (selectedTaskIds.has(task.id) ? { ...task, checked: true } : task)))
+        break
+      case "duplicate":
+        // Use the duplicateTask function from context
+        if (selectedTaskIds.size > 0) {
+          selectedTaskIds.forEach((id) => {
+            duplicateTask(id)
+          })
+        }
+        break
+      case "setDueDate":
+        // Close the context menu
+        setContextMenuTaskId(null)
+        // Set the date picker action and open it
+        setDatePickerAction("dueDate")
+        setIsDatePickerOpen(true)
+        break
+      case "defer":
+        // Close the context menu
+        setContextMenuTaskId(null)
+        // Set the date picker action and open it
+        setDatePickerAction("defer")
+        setIsDatePickerOpen(true)
+        break
+      case "setTags":
+        // Get tags from the first selected task
+        if (selectedTaskIds.size > 0) {
+          const firstTaskId = Array.from(selectedTaskIds)[0]
+          const task = tasks.find((t) => t.id === firstTaskId)
+          setSelectedTaskTags(task?.tags || [])
+          setTagSelectorOpen(true)
+        }
+        break
+      case "convertToProject":
+        if (selectedTaskIds.size === 1) {
+          setIsConversionDialogOpen(true)
+        }
+        break
+      case "shareTask":
+        if (selectedTaskIds.size === 1) {
+          setIsSharingDialogOpen(true)
+        }
+        break
+      default:
+        break
+    }
+  }
+
+  const handleAddTask = () => {
+    const newTask = {
+      id: `task-${Date.now()}`,
+      content: "New Task",
+      checked: false,
+      flagged: false,
+      tags: ["New"],
+    }
+    setTasks([...tasks, newTask])
+    setEditingId(newTask.id)
+  }
+
+  const handleTaskExpand = (taskId: string) => {
+    if (expandedTaskId === taskId) {
+      // Start closing animation
+      setClosingTaskId(taskId)
+      // Immediately update the expanded state for a more responsive feel
+      setExpandedTaskId(null)
+    } else {
+      // If another task is expanded, close it first
+      if (expandedTaskId) {
+        setClosingTaskId(expandedTaskId)
+        // Immediately expand the new task for a more responsive feel
+        setExpandedTaskId(taskId)
+      } else {
+        // No task is expanded, expand this one immediately
+        setExpandedTaskId(taskId)
+      }
+    }
+  }
+
+  const handleDateSelected = (date: Date) => {
+    // Format the date as YYYY-MM-DD
+    const formattedDate = format(date, "yyyy-MM-dd")
+
+    // Update due dates for all selected tasks
+    selectedTaskIds.forEach((id) => {
+      if (datePickerAction === "dueDate") {
+        updateTaskDueDate(id, formattedDate)
+      } else {
+        // Handle defer date (assuming updateTaskDeferDate exists)
+        // If not, you might need to create this function in your task context
+        const task = tasks.find((t) => t.id === id)
+        if (task) {
+          const updatedTask = { ...task, deferDate: formattedDate }
+          // Update the task with the defer date
+          // This depends on your implementation
+        }
+      }
+    })
+
+    // Close the date picker
+    setIsDatePickerOpen(false)
+  }
+
+  const handleTagsSelected = (tags: string[]) => {
+    // Update tags for all selected tasks
+    selectedTaskIds.forEach((id) => {
+      setTaskTags(id, tags)
+    })
+    setTagSelectorOpen(false)
+  }
+
+  const handleEditTask = (id: string, newContent: string) => {
+    setTasks((prevTasks) => prevTasks.map((task) => (task.id === id ? { ...task, content: newContent } : task)))
+    setEditingId(null)
+  }
+
+  // Create a list of sortable items that includes the bottom drop area
+  const sortableItems = [...tasks.map((task) => task.id), BOTTOM_DROP_AREA_ID]
+
+  return (
+    <div className="flex flex-col h-full relative" ref={containerRef}>
+      {showHeader && (
+        <div className="flex items-center justify-between px-12 pt-12 pb-6">
+          <div>
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              {title === "Inbox" && <Inbox className="h-5 w-5 text-muted-foreground" />}
+              {title === "Today" && <Calendar className="h-5 w-5 text-muted-foreground" />}
+              {title === "Deferred" && <CirclePause className="h-5 w-5 text-muted-foreground" />}
+              {title === "Completed" && <CircleCheckBig className="h-5 w-5 text-muted-foreground" />}
+              {title}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              {tasks.filter((task) => !task.checked).length} tasks remaining
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            {selectedTaskIds.size > 0 && (
+              <div className="text-sm text-muted-foreground">
+                {selectedTaskIds.size} task{selectedTaskIds.size !== 1 ? "s" : ""} selected
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              <Search className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
+              <ListFilter className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
+              <Undo2 className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
+              <Redo2 className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-auto w-full task-list-container pl-8 pt-4">
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={sortableItems} strategy={verticalListSortingStrategy}>
+            <div className="w-full">
+              {tasks.map((task) => (
+                <ContextMenu
+                  key={task.id}
+                  onOpenChange={(open) => {
+                    if (!open) handleContextMenuClose()
+                  }}
+                >
+                  <ContextMenuTrigger onContextMenu={(e) => handleContextMenuOpen(task.id, e)}>
+                    <SortableTaskItem
+                      id={task.id}
+                      content={task.content}
+                      checked={task.checked}
+                      dueDate={task.dueDate}
+                      flagged={task.flagged}
+                      tags={task.tags}
+                      onToggle={() => handleToggleTask(task.id)}
+                      onEdit={(newContent) => handleEditTask(task.id, newContent)}
+                      isEditing={editingId === task.id}
+                      setEditing={() => setEditingId(task.id)}
+                      isSelected={selectedTaskIds.has(task.id)}
+                      isContextMenuOpen={contextMenuTaskId === task.id}
+                      isExpanded={expandedTaskId === task.id}
+                      onExpand={() => handleTaskExpand(task.id)}
+                      onSelect={(e) => handleTaskSelect(task.id, e)}
+                    />
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem onClick={() => handleContextMenuAction("setDueDate")}>
+                      <Calendar className="mr-2 h-4 w-4" />
+                      <span>Set Due Date</span>
+                      <ContextMenuShortcut>⌘D</ContextMenuShortcut>
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => handleContextMenuAction("setTags")}>
+                      <Tag className="mr-2 h-4 w-4" />
+                      <span>Set Tags</span>
+                      <ContextMenuShortcut>⌘T</ContextMenuShortcut>
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => handleContextMenuAction("defer")}>
+                      <Clock className="mr-2 h-4 w-4" />
+                      <span>Defer</span>
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => handleContextMenuAction("complete")}>
+                      <Check className="mr-2 h-4 w-4" />
+                      <span>Mark as Complete</span>
+                      <ContextMenuShortcut>⌘↵</ContextMenuShortcut>
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem onClick={() => handleContextMenuAction("convertToProject")}>
+                      <ArrowRightLeft className="mr-2 h-4 w-4" />
+                      <span>Convert to Project</span>
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => handleContextMenuAction("shareTask")}>
+                      <Share2 className="mr-2 h-4 w-4" />
+                      <span>Share Task</span>
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem onClick={() => handleContextMenuAction("duplicate")}>
+                      <Copy className="mr-2 h-4 w-4" />
+                      <span>Duplicate</span>
+                      <ContextMenuShortcut>⌘C</ContextMenuShortcut>
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => handleContextMenuAction("delete")} className="text-red-500">
+                      <Trash className="mr-2 h-4 w-4" />
+                      <span>Delete</span>
+                      <ContextMenuShortcut>⌫</ContextMenuShortcut>
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              ))}
+
+              {/* Bottom drop area that integrates with DnD Kit */}
+              <BottomDropArea />
+            </div>
+          </SortableContext>
+
+          {typeof document !== "undefined" &&
+            activeId &&
+            createPortal(
+              <DragOverlay adjustScale={false} zIndex={1000} dropAnimation={null}>
+                {/* Match the exact structure of the original task item */}
+                <div className="drag-overlay-wrapper">
+                  <div className="drag-overlay-container">
+                    <TaskItem
+                      id={activeId}
+                      content={tasks.find((task) => task.id === activeId)?.content || ""}
+                      checked={tasks.find((task) => task.id === activeId)?.checked || false}
+                      dueDate={tasks.find((task) => task.id === activeId)?.dueDate}
+                      flagged={tasks.find((task) => task.id === activeId)?.flagged || false}
+                      tags={tasks.find((task) => task.id === activeId)?.tags || []}
+                      onToggle={() => {}}
+                      onEdit={() => {}}
+                      isDragging
+                      isSelected={false} // Don't show as selected during drag
+                      onSelect={() => {}}
+                      className="dragged-task-item"
+                    />
+                    {isMultiDragging && selectedTaskIds.size > 1 && (
+                      <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md">
+                        {selectedTaskIds.size}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </DragOverlay>,
+              document.body,
+            )}
+        </DndContext>
+      </div>
+
+      {/* Modeless Date Picker */}
+      <ModelessDatePicker
+        open={isDatePickerOpen}
+        onClose={() => setIsDatePickerOpen(false)}
+        onSelect={handleDateSelected}
+        title={datePickerAction === "dueDate" ? "Set Due Date" : "Defer Until"}
+        position={datePickerPosition}
+      />
+
+      {/* Floating Add Task button with tooltip */}
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              className="absolute bottom-6 right-6 bg-black text-white rounded-[6px] hover:bg-black/90 px-4"
+              onClick={handleAddTask}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add Task
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            <p>Add a new task (Space)</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      {/* Tag Selector Dialog */}
+      <TagSelectorDialog
+        open={tagSelectorOpen}
+        onOpenChange={setTagSelectorOpen}
+        onSave={handleTagsSelected}
+        initialTags={selectedTaskTags}
+      />
+
+      {/* Task Conversion Dialog */}
+      {contextMenuTaskId && (
+        <TaskConversionDialog
+          open={isConversionDialogOpen}
+          onOpenChange={setIsConversionDialogOpen}
+          taskId={contextMenuTaskId}
+        />
+      )}
+
+      {/* Task Sharing Dialog */}
+      {contextMenuTaskId && (
+        <TaskSharingDialog
+          open={isSharingDialogOpen}
+          onOpenChange={setIsSharingDialogOpen}
+          taskId={contextMenuTaskId}
+        />
+      )}
+    </div>
+  )
+}
