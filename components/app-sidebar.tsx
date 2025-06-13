@@ -1,7 +1,7 @@
 "use client"
 
 import type * as React from "react"
-import { Calendar, CheckCircle, Clock, Inbox, PauseCircle, Settings, Trash2, Search, BookCheck } from "lucide-react"
+import { Calendar, CheckCircle, Clock, Inbox, PauseCircle, Trash2, Search, BookCheck } from "lucide-react"
 
 import { NavMain } from "./nav-main"
 import { NavProjects } from "./nav-projects"
@@ -117,10 +117,9 @@ const data = {
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   onSearchClick?: () => void
-  onSettingsClick?: () => void
 }
 
-export function AppSidebar({ onSearchClick, onSettingsClick, ...props }: AppSidebarProps) {
+export function AppSidebar({ onSearchClick, ...props }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -149,12 +148,6 @@ export function AppSidebar({ onSearchClick, onSettingsClick, ...props }: AppSide
         {/* Footer navigation fixed at the bottom */}
         <div className="mt-auto pt-2">
           <NavMain items={data.footerNav} />
-          <div className="px-2 py-2">
-            <Button variant="ghost" size="sm" className="w-full justify-start text-sm" onClick={onSettingsClick}>
-              <Settings className="h-4 w-4 mr-2" />
-              Settings
-            </Button>
-          </div>
         </div>
       </SidebarContent>
       <SidebarFooter className="bg-[#fafafa]">

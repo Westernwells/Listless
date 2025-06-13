@@ -9,7 +9,6 @@ import { TrashView } from "@/components/task/trash-view"
 import { ProjectView } from "@/components/project-view"
 import { TaskProvider, useTaskContext } from "@/components/task/task-context"
 import { SearchDialog } from "@/components/search-dialog"
-import { SettingsDialog } from "@/components/settings-dialog"
 import { DragContextProvider } from "../../components/task/drag-context"
 import { ScheduledView } from "@/components/task/scheduled-view"
 
@@ -47,7 +46,6 @@ function TaskContent() {
 
 export default function Page() {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   // Keyboard shortcut for search
   useEffect(() => {
@@ -68,7 +66,7 @@ export default function Page() {
       <DragContextProvider>
         <SidebarProvider>
           <div className="flex h-screen w-full">
-            <AppSidebar onSearchClick={() => setIsSearchOpen(true)} onSettingsClick={() => setIsSettingsOpen(true)} />
+            <AppSidebar onSearchClick={() => setIsSearchOpen(true)} />
             <main className="flex-1 overflow-hidden w-full">
               <TaskContent />
             </main>
@@ -76,7 +74,6 @@ export default function Page() {
 
           {/* Global Dialogs */}
           <SearchDialog open={isSearchOpen} onOpenChange={setIsSearchOpen} />
-          <SettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
         </SidebarProvider>
       </DragContextProvider>
     </TaskProvider>
