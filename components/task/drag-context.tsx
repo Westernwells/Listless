@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import dynamic from "next/dynamic"
 import {
   DndContext,
   type DragEndEvent,
@@ -47,6 +48,7 @@ export function DragContextProvider({ children }: { children: ReactNode }) {
   const [activeDroppableId, setActiveDroppableId] = useState<string | null>(null)
   const [droppableAreas, setDroppableAreas] = useState<Record<string, boolean>>({})
   const [isMultiDragging, setIsMultiDragging] = useState(false)
+  const [isClient, setIsClient] = useState(false)
 
   // Enhanced sensors with better activation constraints
   const sensors = useSensors(
@@ -61,6 +63,11 @@ export function DragContextProvider({ children }: { children: ReactNode }) {
       coordinateGetter: sortableKeyboardCoordinates,
     }),
   )
+
+  // Set client-side flag to prevent hydration issues
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   // Reset state when component unmounts
   useEffect(() => {
@@ -172,6 +179,25 @@ export function DragContextProvider({ children }: { children: ReactNode }) {
         },
       },
     }),
+  }
+
+  // Don't render DndContext on server to prevent hydration issues
+  if (!isClient) {
+    return (
+      <DragContext.Provider
+        value={{
+          activeTaskId: null,
+          selectedTaskIds: new Set(),
+          isDraggingTask: false,
+          activeDroppableId: null,
+          isDraggingOver: () => false,
+          setSelectedTaskIds: () => {},
+          isMultiDragging: false,
+        }}
+      >
+        {children}
+      </DragContext.Provider>
+    )
   }
 
   return (

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { SettingsPageTitle } from "@/components/settings/settings-page-title"
 import { SettingsCard } from "@/components/settings/settings-card"
 import { Button } from "@/components/ui/button"
@@ -10,23 +10,53 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { ChangeEmailModal } from "@/components/settings/account/change-email-modal"
 import { ResetPasswordModal } from "@/components/settings/account/reset-password-modal"
 import { DeleteAccountModal } from "@/components/settings/account/delete-account-modal"
 import { toast } from "@/hooks/use-toast"
-import { Mail, KeyRound, Trash2, Github, Gitlab, AtSign } from "lucide-react"
+import { useAuth } from "@/lib/auth/context"
+import { Mail, KeyRound, Trash2, Github, Gitlab, AtSign, CheckCircle } from "lucide-react"
 
 export default function AccountSettingsPage() {
+  const { user: authUser, userProfile, loading } = useAuth()
   const [user, setUser] = useState({
-    name: "John Doe",
-    email: "john.doe@example.com",
-    avatarUrl: "/placeholder.svg?width=128&height=128", // Placeholder
-    bio: "Software Developer at Acme Inc.",
+    name: userProfile?.name || authUser?.user_metadata?.name || "",
+    email: authUser?.email || "",
+    avatarUrl: userProfile?.avatar_url || "/placeholder.svg?width=128&height=128",
+    bio: userProfile?.bio || "",
   })
 
   const [isChangeEmailModalOpen, setIsChangeEmailModalOpen] = useState(false)
   const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false)
   const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false)
+  const [emailUpdated, setEmailUpdated] = useState(false)
+  const [welcomeMessage, setWelcomeMessage] = useState(false)
+
+  useEffect(() => {
+    // Update user state when auth data changes
+    if (authUser && userProfile) {
+      setUser({
+        name: userProfile.name || authUser.user_metadata?.name || "",
+        email: authUser.email || "",
+        avatarUrl: userProfile.avatar_url || "/placeholder.svg?width=128&height=128",
+        bio: userProfile.bio || "",
+      })
+    }
+
+    // Check for URL parameters
+    const urlParams = new URLSearchParams(window.location.search)
+    if (urlParams.get('email_updated') === 'true') {
+      setEmailUpdated(true)
+      // Clear the URL parameter
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+    if (urlParams.get('welcome') === 'true') {
+      setWelcomeMessage(true)
+      // Clear the URL parameter
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [authUser, userProfile])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target

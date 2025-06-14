@@ -16,8 +16,14 @@ export interface SortableTaskItemProps extends TaskItemProps {
 
 export function SortableTaskItem(props: SortableTaskItemProps) {
   const [isDragging, setIsDragging] = useState(false)
+  const [isClient, setIsClient] = useState(false)
   const { selectedTaskIds, isMultiDragging, activeTaskId } = useDragContext()
   const isSelected = selectedTaskIds.has(props.id)
+
+  // Set client-side flag to prevent hydration issues
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   // Determine if this task is part of a multi-drag operation
   const isPartOfMultiDrag = isMultiDragging && isSelected
@@ -25,15 +31,8 @@ export function SortableTaskItem(props: SortableTaskItemProps) {
   // If this is not the active task but is part of a multi-drag, it should appear as being dragged
   const shouldAppearDragged = isPartOfMultiDrag && activeTaskId !== props.id
 
-  // Local drag-and-drop for sorting within a list
-  const {
-    attributes: sortableAttributes,
-    listeners: sortableListeners,
-    setNodeRef: setSortableNodeRef,
-    transform: sortableTransform,
-    transition: sortableTransition,
-    isDragging: isSortableDragging,
-  } = useSortable({
+  // Only call hooks on client side to prevent SSR issues
+  const sortableResult = typeof window !== 'undefined' ? useSortable({
     id: props.id,
     data: {
       type: "task",
@@ -41,16 +40,34 @@ export function SortableTaskItem(props: SortableTaskItemProps) {
       isSelected,
       isPartOfMultiDrag,
     },
-  })
+  }) : {
+    attributes: {},
+    listeners: {},
+    setNodeRef: () => {},
+    transform: null,
+    transition: undefined,
+    isDragging: false,
+  }
 
-  // Global drag-and-drop for moving between lists
+  // Local drag-and-drop for sorting within a list (only on client)
   const {
-    attributes: draggableAttributes,
-    listeners: draggableListeners,
-    setNodeRef: setDraggableNodeRef,
-    transform: draggableTransform,
-    isDragging: isDraggableDragging,
-  } = useDraggable({
+    attributes: sortableAttributes,
+    listeners: sortableListeners,
+    setNodeRef: setSortableNodeRef,
+    transform: sortableTransform,
+    transition: sortableTransition,
+    isDragging: isSortableDragging,
+  } = isClient ? sortableResult : {
+    attributes: {},
+    listeners: {},
+    setNodeRef: () => {},
+    transform: null,
+    transition: undefined,
+    isDragging: false,
+  }
+
+  // Only call hooks on client side to prevent SSR issues
+  const draggableResult = typeof window !== 'undefined' ? useDraggable({
     id: props.id,
     data: {
       type: "task",
@@ -59,7 +76,28 @@ export function SortableTaskItem(props: SortableTaskItemProps) {
       isPartOfMultiDrag,
       selectedCount: selectedTaskIds.size,
     },
-  })
+  }) : {
+    attributes: {},
+    listeners: {},
+    setNodeRef: () => {},
+    transform: null,
+    isDragging: false,
+  }
+
+  // Global drag-and-drop for moving between lists (only on client)
+  const {
+    attributes: draggableAttributes,
+    listeners: draggableListeners,
+    setNodeRef: setDraggableNodeRef,
+    transform: draggableTransform,
+    isDragging: isDraggableDragging,
+  } = isClient ? draggableResult : {
+    attributes: {},
+    listeners: {},
+    setNodeRef: () => {},
+    transform: null,
+    isDragging: false,
+  }
 
   // Update combined dragging state
   useEffect(() => {
@@ -106,16 +144,19 @@ export function SortableTaskItem(props: SortableTaskItemProps) {
       data-multi-drag={isPartOfMultiDrag ? "true" : "false"}
       data-expanded={props.isExpanded ? "true" : "false"}
     >
-      <div className="grip-handle">
-        <button
-          className="p-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
-          {...combinedAttributes}
-          {...combinedListeners}
-          aria-label="Drag to reorder"
-        >
-          <GripVertical className="h-3.5 w-3.5" />
-        </button>
-      </div>
+      {isClient && (
+        <div className="grip-handle">
+          <button
+            className="p-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+            {...combinedAttributes}
+            {...combinedListeners}
+            aria-label="Drag to reorder"
+            suppressHydrationWarning
+          >
+            <GripVertical className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
       <div className="task-item-wrapper">
         <TaskItem
           {...props}

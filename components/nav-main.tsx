@@ -108,11 +108,21 @@ function NavMenuItem({
   const { setActiveListId, activeListId, getTasksForList } = useTaskContext()
   const { isDraggingTask, isDraggingOver } = useDragContext()
   const [isOver, setIsOver] = useState(false)
+  const [isClient, setIsClient] = useState(false)
+
+  // Set client-side flag to prevent hydration issues
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   const itemId = `sidebar-${item.title.toLowerCase()}`
-  const { setNodeRef, isOver: dndIsOver } = useDroppable({
+
+  // Only call useDroppable on client side to prevent SSR issues
+  const droppableResult = typeof window !== 'undefined' ? useDroppable({
     id: itemId,
-  })
+  }) : { setNodeRef: () => {}, isOver: false }
+
+  const { setNodeRef, isOver: dndIsOver } = isClient ? droppableResult : { setNodeRef: () => {}, isOver: false }
 
   // Update isOver state when dndIsOver changes
   useEffect(() => {
@@ -135,8 +145,9 @@ function NavMenuItem({
   return (
     <SidebarMenuItem
       className={cn("w-full relative", showDropIndicator && "bg-blue-100 rounded-md border-2 border-blue-400")}
-      ref={setNodeRef}
+      ref={isClient ? setNodeRef : undefined}
       data-droppable-id={itemId}
+      suppressHydrationWarning
     >
       <SidebarMenuButton
         tooltip={item.title}

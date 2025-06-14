@@ -14,6 +14,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertCircle, CheckCircle } from "lucide-react"
+import { resetPassword } from "@/lib/auth/actions"
+import { useAuth } from "@/lib/auth/context"
 
 interface ResetPasswordModalProps {
   open: boolean
@@ -21,37 +25,39 @@ interface ResetPasswordModalProps {
 }
 
 export function ResetPasswordModal({ open, onOpenChange }: ResetPasswordModalProps) {
-  const [currentPassword, setCurrentPassword] = useState("")
-  const [newPassword, setNewPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const { user } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (newPassword !== confirmPassword) {
-      alert("New passwords do not match")
-      return
-    }
-
-    if (newPassword.length < 8) {
-      alert("Password must be at least 8 characters long")
+    if (!user?.email) {
+      setError("No email address found for current user")
       return
     }
 
     setIsLoading(true)
+    setError(null)
+    setSuccess(null)
 
     try {
-      // Handle password reset logic here
-      console.log("Resetting password")
-      await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate API call
+      const result = await resetPassword({ email: user.email })
 
-      onOpenChange(false)
-      setCurrentPassword("")
-      setNewPassword("")
-      setConfirmPassword("")
+      if (result.success) {
+        setSuccess(result.message || "Password reset email sent! Check your inbox.")
+        // Don't close modal immediately to show success message
+        setTimeout(() => {
+          onOpenChange(false)
+          setSuccess(null)
+        }, 3000)
+      } else {
+        setError(result.error || "Failed to send password reset email")
+      }
     } catch (error) {
-      console.error("Failed to reset password:", error)
+      console.error("Failed to send password reset email:", error)
+      setError("An unexpected error occurred. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -62,55 +68,73 @@ export function ResetPasswordModal({ open, onOpenChange }: ResetPasswordModalPro
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Reset Password</DialogTitle>
-          <DialogDescription>Enter your current password and choose a new password.</DialogDescription>
+          <DialogDescription>
+            We'll send a password reset link to your email address.
+          </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="current-password">Current Password</Label>
-              <Input
-                id="current-password"
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="Enter current password"
-                required
-              />
+
+        <div className="grid gap-4 py-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {success && (
+            <Alert>
+              <CheckCircle className="h-4 w-4" />
+              <AlertDescription>{success}</AlertDescription>
+            </Alert>
+          )}
+
+          {!success && (
+            <div className="text-center space-y-4">
+              <p className="text-sm text-gray-600">
+                A password reset link will be sent to: <strong>{user?.email}</strong>
+              </p>
+
+              <form onSubmit={handleSubmit}>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      onOpenChange(false)
+                      setError(null)
+                      setSuccess(null)
+                    }}
+                    disabled={isLoading}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isLoading}
+                    className="flex-1"
+                  >
+                    {isLoading ? "Sending..." : "Send Reset Link"}
+                  </Button>
+                </div>
+              </form>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-password">New Password</Label>
-              <Input
-                id="new-password"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter new password"
-                required
-                minLength={8}
-              />
+          )}
+
+          {success && (
+            <div className="text-center">
+              <Button
+                onClick={() => {
+                  onOpenChange(false)
+                  setSuccess(null)
+                }}
+                className="w-full"
+              >
+                Close
+              </Button>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm New Password</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm new password"
-                required
-                minLength={8}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Saving..." : "Save Password"}
-            </Button>
-          </DialogFooter>
-        </form>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   )

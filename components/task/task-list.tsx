@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
+import dynamic from "next/dynamic"
 import {
   DndContext,
   closestCenter,
@@ -106,11 +107,17 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null)
   const [closingTaskId, setClosingTaskId] = useState<string | null>(null)
   const [containerWidth, setContainerWidth] = useState<number | null>(null)
+  const [isClient, setIsClient] = useState(false)
 
   // Date picker state
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
   const [datePickerAction, setDatePickerAction] = useState<"dueDate" | "defer">("dueDate")
   const [datePickerPosition, setDatePickerPosition] = useState({ x: 0, y: 0 })
+
+  // Set client-side flag to prevent hydration issues
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   // Update tasks when initialTasks changes
   useEffect(() => {
@@ -546,121 +553,28 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
       )}
 
       <div className="flex-1 overflow-auto w-full task-list-container pl-8 pt-4">
-        <DndContext
+        <TaskListContent
+          isClient={isClient}
+          tasks={tasks}
           sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext items={sortableItems} strategy={verticalListSortingStrategy}>
-            <div className="w-full">
-              {tasks.map((task) => (
-                <ContextMenu
-                  key={task.id}
-                  onOpenChange={(open) => {
-                    if (!open) handleContextMenuClose()
-                  }}
-                >
-                  <ContextMenuTrigger onContextMenu={(e) => handleContextMenuOpen(task.id, e)}>
-                    <SortableTaskItem
-                      id={task.id}
-                      content={task.content}
-                      checked={task.checked}
-                      dueDate={task.dueDate}
-                      flagged={task.flagged}
-                      tags={task.tags}
-                      onToggle={() => handleToggleTask(task.id)}
-                      onEdit={(newContent) => handleEditTask(task.id, newContent)}
-                      isEditing={editingId === task.id}
-                      setEditing={() => setEditingId(task.id)}
-                      isSelected={selectedTaskIds.has(task.id)}
-                      isContextMenuOpen={contextMenuTaskId === task.id}
-                      isExpanded={expandedTaskId === task.id}
-                      onExpand={() => handleTaskExpand(task.id)}
-                      onSelect={(e) => handleTaskSelect(task.id, e)}
-                    />
-                  </ContextMenuTrigger>
-                  <ContextMenuContent>
-                    <ContextMenuItem onClick={() => handleContextMenuAction("setDueDate")}>
-                      <Calendar className="mr-2 h-4 w-4" />
-                      <span>Set Due Date</span>
-                      <ContextMenuShortcut>⌘D</ContextMenuShortcut>
-                    </ContextMenuItem>
-                    <ContextMenuItem onClick={() => handleContextMenuAction("setTags")}>
-                      <Tag className="mr-2 h-4 w-4" />
-                      <span>Set Tags</span>
-                      <ContextMenuShortcut>⌘T</ContextMenuShortcut>
-                    </ContextMenuItem>
-                    <ContextMenuItem onClick={() => handleContextMenuAction("defer")}>
-                      <Clock className="mr-2 h-4 w-4" />
-                      <span>Defer</span>
-                    </ContextMenuItem>
-                    <ContextMenuItem onClick={() => handleContextMenuAction("complete")}>
-                      <Check className="mr-2 h-4 w-4" />
-                      <span>Mark as Complete</span>
-                      <ContextMenuShortcut>⌘↵</ContextMenuShortcut>
-                    </ContextMenuItem>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem onClick={() => handleContextMenuAction("convertToProject")}>
-                      <ArrowRightLeft className="mr-2 h-4 w-4" />
-                      <span>Convert to Project</span>
-                    </ContextMenuItem>
-                    <ContextMenuItem onClick={() => handleContextMenuAction("shareTask")}>
-                      <Share2 className="mr-2 h-4 w-4" />
-                      <span>Share Task</span>
-                    </ContextMenuItem>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem onClick={() => handleContextMenuAction("duplicate")}>
-                      <Copy className="mr-2 h-4 w-4" />
-                      <span>Duplicate</span>
-                      <ContextMenuShortcut>⌘C</ContextMenuShortcut>
-                    </ContextMenuItem>
-                    <ContextMenuItem onClick={() => handleContextMenuAction("delete")} className="text-red-500">
-                      <Trash className="mr-2 h-4 w-4" />
-                      <span>Delete</span>
-                      <ContextMenuShortcut>⌫</ContextMenuShortcut>
-                    </ContextMenuItem>
-                  </ContextMenuContent>
-                </ContextMenu>
-              ))}
-
-              {/* Bottom drop area that integrates with DnD Kit */}
-              <BottomDropArea />
-            </div>
-          </SortableContext>
-
-          {typeof document !== "undefined" &&
-            activeId &&
-            createPortal(
-              <DragOverlay adjustScale={false} zIndex={1000} dropAnimation={null}>
-                {/* Match the exact structure of the original task item */}
-                <div className="drag-overlay-wrapper">
-                  <div className="drag-overlay-container">
-                    <TaskItem
-                      id={activeId}
-                      content={tasks.find((task) => task.id === activeId)?.content || ""}
-                      checked={tasks.find((task) => task.id === activeId)?.checked || false}
-                      dueDate={tasks.find((task) => task.id === activeId)?.dueDate}
-                      flagged={tasks.find((task) => task.id === activeId)?.flagged || false}
-                      tags={tasks.find((task) => task.id === activeId)?.tags || []}
-                      onToggle={() => {}}
-                      onEdit={() => {}}
-                      isDragging
-                      isSelected={false} // Don't show as selected during drag
-                      onSelect={() => {}}
-                      className="dragged-task-item"
-                    />
-                    {isMultiDragging && selectedTaskIds.size > 1 && (
-                      <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md">
-                        {selectedTaskIds.size}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </DragOverlay>,
-              document.body,
-            )}
-        </DndContext>
+          sortableItems={sortableItems}
+          handleDragStart={handleDragStart}
+          handleDragEnd={handleDragEnd}
+          handleContextMenuClose={handleContextMenuClose}
+          handleContextMenuOpen={handleContextMenuOpen}
+          handleToggleTask={handleToggleTask}
+          handleEditTask={handleEditTask}
+          handleTaskExpand={handleTaskExpand}
+          handleTaskSelect={handleTaskSelect}
+          handleContextMenuAction={handleContextMenuAction}
+          editingId={editingId}
+          setEditingId={setEditingId}
+          selectedTaskIds={selectedTaskIds}
+          contextMenuTaskId={contextMenuTaskId}
+          expandedTaskId={expandedTaskId}
+          activeId={activeId}
+          isMultiDragging={isMultiDragging}
+        />
       </div>
 
       {/* Modeless Date Picker */}
@@ -716,5 +630,213 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
         />
       )}
     </div>
+  )
+}
+
+// Separate component for task list content to handle client/server rendering
+function TaskListContent({
+  isClient,
+  tasks,
+  sensors,
+  sortableItems,
+  handleDragStart,
+  handleDragEnd,
+  handleContextMenuClose,
+  handleContextMenuOpen,
+  handleToggleTask,
+  handleEditTask,
+  handleTaskExpand,
+  handleTaskSelect,
+  handleContextMenuAction,
+  editingId,
+  setEditingId,
+  selectedTaskIds,
+  contextMenuTaskId,
+  expandedTaskId,
+  activeId,
+  isMultiDragging,
+}: {
+  isClient: boolean
+  tasks: Task[]
+  sensors: any
+  sortableItems: string[]
+  handleDragStart: (event: DragStartEvent) => void
+  handleDragEnd: (event: DragEndEvent) => void
+  handleContextMenuClose: () => void
+  handleContextMenuOpen: (taskId: string, event: React.MouseEvent) => void
+  handleToggleTask: (id: string) => void
+  handleEditTask: (id: string, newContent: string) => void
+  handleTaskExpand: (taskId: string) => void
+  handleTaskSelect: (id: string, event: React.MouseEvent) => void
+  handleContextMenuAction: (action: string) => void
+  editingId: string | null
+  setEditingId: (id: string) => void
+  selectedTaskIds: Set<string>
+  contextMenuTaskId: string | null
+  expandedTaskId: string | null
+  activeId: string | null
+  isMultiDragging: boolean
+}) {
+  if (!isClient) {
+    // Server-side fallback without drag and drop
+    return (
+      <div className="w-full">
+        {tasks.map((task) => (
+          <ContextMenu
+            key={task.id}
+            onOpenChange={(open) => {
+              if (!open) handleContextMenuClose()
+            }}
+          >
+            <ContextMenuTrigger onContextMenu={(e) => handleContextMenuOpen(task.id, e)}>
+              <TaskItem
+                id={task.id}
+                content={task.content}
+                checked={task.checked}
+                dueDate={task.dueDate}
+                flagged={task.flagged}
+                tags={task.tags}
+                onToggle={() => handleToggleTask(task.id)}
+                onEdit={(newContent) => handleEditTask(task.id, newContent)}
+                isEditing={editingId === task.id}
+                setEditing={() => setEditingId(task.id)}
+                isSelected={selectedTaskIds.has(task.id)}
+                isContextMenuOpen={contextMenuTaskId === task.id}
+                isExpanded={expandedTaskId === task.id}
+                onExpand={() => handleTaskExpand(task.id)}
+                onSelect={(e) => handleTaskSelect(task.id, e)}
+              />
+            </ContextMenuTrigger>
+            <TaskContextMenu handleContextMenuAction={handleContextMenuAction} />
+          </ContextMenu>
+        ))}
+      </div>
+    )
+  }
+
+  // Client-side with drag and drop
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext items={sortableItems} strategy={verticalListSortingStrategy}>
+        <div className="w-full">
+          {tasks.map((task) => (
+            <ContextMenu
+              key={task.id}
+              onOpenChange={(open) => {
+                if (!open) handleContextMenuClose()
+              }}
+            >
+              <ContextMenuTrigger onContextMenu={(e) => handleContextMenuOpen(task.id, e)}>
+                <SortableTaskItem
+                  id={task.id}
+                  content={task.content}
+                  checked={task.checked}
+                  dueDate={task.dueDate}
+                  flagged={task.flagged}
+                  tags={task.tags}
+                  onToggle={() => handleToggleTask(task.id)}
+                  onEdit={(newContent) => handleEditTask(task.id, newContent)}
+                  isEditing={editingId === task.id}
+                  setEditing={() => setEditingId(task.id)}
+                  isSelected={selectedTaskIds.has(task.id)}
+                  isContextMenuOpen={contextMenuTaskId === task.id}
+                  isExpanded={expandedTaskId === task.id}
+                  onExpand={() => handleTaskExpand(task.id)}
+                  onSelect={(e) => handleTaskSelect(task.id, e)}
+                />
+              </ContextMenuTrigger>
+              <TaskContextMenu handleContextMenuAction={handleContextMenuAction} />
+            </ContextMenu>
+          ))}
+
+          {/* Bottom drop area that integrates with DnD Kit */}
+          <BottomDropArea />
+        </div>
+      </SortableContext>
+
+      {typeof document !== "undefined" &&
+        activeId &&
+        createPortal(
+          <DragOverlay adjustScale={false} zIndex={1000} dropAnimation={null}>
+            {/* Match the exact structure of the original task item */}
+            <div className="drag-overlay-wrapper">
+              <div className="drag-overlay-container">
+                <TaskItem
+                  id={activeId}
+                  content={tasks.find((task) => task.id === activeId)?.content || ""}
+                  checked={tasks.find((task) => task.id === activeId)?.checked || false}
+                  dueDate={tasks.find((task) => task.id === activeId)?.dueDate}
+                  flagged={tasks.find((task) => task.id === activeId)?.flagged || false}
+                  tags={tasks.find((task) => task.id === activeId)?.tags || []}
+                  onToggle={() => {}}
+                  onEdit={() => {}}
+                  isDragging
+                  isSelected={false} // Don't show as selected during drag
+                  onSelect={() => {}}
+                  className="dragged-task-item"
+                />
+                {isMultiDragging && selectedTaskIds.size > 1 && (
+                  <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shadow-md">
+                    {selectedTaskIds.size}
+                  </div>
+                )}
+              </div>
+            </div>
+          </DragOverlay>,
+          document.body,
+        )}
+    </DndContext>
+  )
+}
+
+// Reusable context menu component
+function TaskContextMenu({ handleContextMenuAction }: { handleContextMenuAction: (action: string) => void }) {
+  return (
+    <ContextMenuContent>
+      <ContextMenuItem onClick={() => handleContextMenuAction("setDueDate")}>
+        <Calendar className="mr-2 h-4 w-4" />
+        <span>Set Due Date</span>
+        <ContextMenuShortcut>⌘D</ContextMenuShortcut>
+      </ContextMenuItem>
+      <ContextMenuItem onClick={() => handleContextMenuAction("setTags")}>
+        <Tag className="mr-2 h-4 w-4" />
+        <span>Set Tags</span>
+        <ContextMenuShortcut>⌘T</ContextMenuShortcut>
+      </ContextMenuItem>
+      <ContextMenuItem onClick={() => handleContextMenuAction("defer")}>
+        <Clock className="mr-2 h-4 w-4" />
+        <span>Defer</span>
+      </ContextMenuItem>
+      <ContextMenuItem onClick={() => handleContextMenuAction("complete")}>
+        <Check className="mr-2 h-4 w-4" />
+        <span>Mark Complete</span>
+        <ContextMenuShortcut>⌘⏎</ContextMenuShortcut>
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem onClick={() => handleContextMenuAction("convertToProject")}>
+        <ArrowRightLeft className="mr-2 h-4 w-4" />
+        <span>Convert to Project</span>
+      </ContextMenuItem>
+      <ContextMenuItem onClick={() => handleContextMenuAction("shareTask")}>
+        <Share2 className="mr-2 h-4 w-4" />
+        <span>Share Task</span>
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem onClick={() => handleContextMenuAction("duplicate")}>
+        <Copy className="mr-2 h-4 w-4" />
+        <span>Duplicate</span>
+        <ContextMenuShortcut>⌘C</ContextMenuShortcut>
+      </ContextMenuItem>
+      <ContextMenuItem onClick={() => handleContextMenuAction("delete")} className="text-red-500">
+        <Trash className="mr-2 h-4 w-4" />
+        <span>Delete</span>
+        <ContextMenuShortcut>⌫</ContextMenuShortcut>
+      </ContextMenuItem>
+    </ContextMenuContent>
   )
 }

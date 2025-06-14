@@ -158,11 +158,20 @@ function WeeklySectionItem({
   const { setActiveListId, activeListId, getTasksForList } = useTaskContext()
   const { isDraggingTask } = useDragContext()
   const [isOver, setIsOver] = useState(false)
+  const [isClient, setIsClient] = useState(false)
   const listId = list.name.toLowerCase().replace(/\s+/g, "-")
 
-  const { setNodeRef, isOver: dndIsOver } = useDroppable({
+  // Set client-side flag to prevent hydration issues
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  // Only call useDroppable on client side to prevent SSR issues
+  const droppableResult = typeof window !== 'undefined' ? useDroppable({
     id: `sidebar-${listId}`,
-  })
+  }) : { setNodeRef: () => {}, isOver: false }
+
+  const { setNodeRef, isOver: dndIsOver } = isClient ? droppableResult : { setNodeRef: () => {}, isOver: false }
 
   // Update isOver state when dndIsOver changes
   useEffect(() => {
@@ -185,8 +194,9 @@ function WeeklySectionItem({
   return (
     <SidebarMenuItem
       className={cn("w-full relative", showDropIndicator && "bg-blue-100 rounded-md border-2 border-blue-400")}
-      ref={setNodeRef}
+      ref={isClient ? setNodeRef : undefined}
       data-droppable-id={`sidebar-${listId}`}
+      suppressHydrationWarning
     >
       <SidebarMenuButton
         asChild
