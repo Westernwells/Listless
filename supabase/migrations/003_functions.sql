@@ -1,6 +1,6 @@
 -- Function to perform vector similarity search on tasks
 create or replace function public.match_tasks(
-  query_embedding vector(1536),
+  query_embedding extensions.vector(1536),
   match_threshold float default 0.78,
   match_count int default 10,
   filter_user_id uuid default null
@@ -20,7 +20,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   return query
@@ -37,7 +37,7 @@ begin
     tasks.created_at,
     tasks.updated_at
   from public.tasks
-  where 
+  where
     tasks.embedding is not null
     and tasks.is_deleted = false
     and (filter_user_id is null or tasks.user_id = filter_user_id)
@@ -62,21 +62,21 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
-  task_embedding vector(1536);
+  task_embedding extensions.vector(1536);
   task_user_id uuid;
 begin
   -- Get the task embedding and verify ownership
   select embedding, user_id into task_embedding, task_user_id
   from public.tasks
   where id = task_id and user_id = auth.uid();
-  
+
   if task_embedding is null or task_user_id != auth.uid() then
     return;
   end if;
-  
+
   return query
   select
     tags.id as tag_id,
@@ -86,7 +86,7 @@ begin
   from public.tags
   join public.task_tags on tags.id = task_tags.tag_id
   join public.tasks similar_tasks on task_tags.task_id = similar_tasks.id
-  where 
+  where
     tags.user_id = auth.uid()
     and similar_tasks.user_id = auth.uid()
     and similar_tasks.embedding is not null
@@ -107,22 +107,22 @@ $$;
 -- Function to create or update task embedding
 create or replace function public.update_task_embedding(
   task_id uuid,
-  new_embedding vector(1536)
+  new_embedding extensions.vector(1536)
 )
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   update public.tasks
-  set 
+  set
     embedding = new_embedding,
     updated_at = now()
-  where 
-    id = task_id 
+  where
+    id = task_id
     and user_id = auth.uid();
-  
+
   return found;
 end;
 $$;
@@ -134,7 +134,7 @@ create or replace function public.batch_update_embeddings(
 returns int
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   updated_count int := 0;
@@ -143,18 +143,18 @@ begin
   for task_data in select jsonb_array_elements(task_embeddings)
   loop
     update public.tasks
-    set 
-      embedding = (task_data->>'embedding')::vector(1536),
+    set
+      embedding = (task_data->>'embedding')::extensions.vector(1536),
       updated_at = now()
-    where 
+    where
       id = (task_data->>'task_id')::uuid
       and user_id = auth.uid();
-    
+
     if found then
       updated_count := updated_count + 1;
     end if;
   end loop;
-  
+
   return updated_count;
 end;
 $$;

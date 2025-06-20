@@ -101,7 +101,7 @@ export const AreaIdSchema = z.object({
 
 // Action history entry schema for undo/redo functionality
 export const ActionHistorySchema = z.object({
-  action_type: z.enum(['create', 'update', 'delete', 'restore', 'duplicate', 'convert']),
+  action_type: z.enum(['create', 'update', 'delete', 'restore', 'duplicate', 'convert', 'reorder']),
   entity_type: z.enum(['task', 'project_list', 'area']),
   entity_id: z.string().uuid(),
   old_data: z.record(z.any()).optional(),
@@ -125,3 +125,61 @@ export type CreateAreaInput = z.infer<typeof CreateAreaSchema>
 export type UpdateAreaInput = z.infer<typeof UpdateAreaSchema>
 export type AreaIdParams = z.infer<typeof AreaIdSchema>
 export type ActionHistoryEntry = z.infer<typeof ActionHistorySchema>
+
+// Enhanced reordering validation schemas with improved error handling
+export const ReorderMoveSchema = z.object({
+  id: z.string({
+    required_error: 'ID is required',
+    invalid_type_error: 'ID must be a string'
+  }).uuid({
+    message: 'ID must be a valid UUID format'
+  }),
+  sort_order: z.number({
+    required_error: 'Sort order is required',
+    invalid_type_error: 'Sort order must be a number'
+  }).int({
+    message: 'Sort order must be an integer'
+  }).min(0, {
+    message: 'Sort order must be non-negative (>= 0)'
+  }).max(999999, {
+    message: 'Sort order is too large (max: 999999)'
+  }),
+  parent_id: z.string().uuid({
+    message: 'Parent ID must be a valid UUID format'
+  }).optional().nullable(),
+})
+
+export const ReorderSchema = z.object({
+  type: z.enum(['tasks', 'project_lists', 'areas'], {
+    errorMap: (issue, ctx) => {
+      if (issue.code === z.ZodIssueCode.invalid_type) {
+        return { message: 'Entity type must be a string' }
+      }
+      if (issue.code === z.ZodIssueCode.invalid_enum_value) {
+        return { message: `Invalid entity type "${issue.received}". Must be one of: tasks, project_lists, areas` }
+      }
+      if (issue.code === z.ZodIssueCode.invalid_literal) {
+        return { message: 'Entity type is required' }
+      }
+      return { message: ctx.defaultError }
+    }
+  }),
+  moves: z.array(ReorderMoveSchema).min(1, {
+    message: 'At least one move operation is required'
+  }).max(100, {
+    message: 'Too many move operations (max: 100)'
+  }).refine((moves) => {
+    // Check for duplicate IDs in the same request
+    const ids = moves.map(m => m.id)
+    const uniqueIds = new Set(ids)
+    return ids.length === uniqueIds.size
+  }, {
+    message: 'Duplicate IDs found in move operations'
+  }),
+})
+
+/**
+ * Additional type exports for reordering
+ */
+export type ReorderMoveInput = z.infer<typeof ReorderMoveSchema>
+export type ReorderInput = z.infer<typeof ReorderSchema>

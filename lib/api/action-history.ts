@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { ActionHistoryEntry } from './validation'
+import { ActionHistoryEntry, ReorderMoveInput } from './validation'
 import { v4 as uuidv4 } from 'uuid'
 
 /**
@@ -293,6 +293,64 @@ export async function recordAreaDeletion(
     oldData: areaData,
     metadata,
   })
+}
+
+/**
+ * Records a reorder operation action with enhanced error handling
+ * This records the entire batch reorder as a single action for undo/redo
+ */
+export async function recordReorderOperation(
+  userId: string,
+  entityType: 'task' | 'project_list' | 'area',
+  moves: ReorderMoveInput[],
+  oldData: Record<string, any>[],
+  metadata?: Record<string, any>
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Generate a batch ID for this reorder operation
+    const batchId = uuidv4()
+
+    // Create a summary of the reorder operation with enhanced data
+    const reorderSummary = {
+      entityType,
+      moveCount: moves.length,
+      moves: moves.map(move => ({
+        id: move.id,
+        newSortOrder: move.sort_order,
+        newParentId: move.parent_id,
+        // Include old data for each moved item for better undo support
+        oldData: oldData.find(item => item.id === move.id),
+      })),
+      batchId,
+      timestamp: new Date().toISOString(),
+    }
+
+    const result = await recordAction({
+      userId,
+      actionType: 'update',
+      entityType,
+      entityId: batchId, // Use batch ID as entity ID for reorder operations
+      oldData: { entities: oldData },
+      newData: reorderSummary,
+      metadata: {
+        ...metadata,
+        operationType: 'reorder',
+        batchId,
+        affectedEntityCount: moves.length,
+      },
+    })
+
+    return result
+  } catch (error: unknown) {
+    // Enhanced error handling following TypeScript best practices
+    if (error instanceof Error) {
+      console.error('Error recording reorder operation:', error.message)
+      return { success: false, error: `Failed to record action history: ${error.message}` }
+    }
+
+    console.error('Unknown error recording reorder operation:', error)
+    return { success: false, error: 'Failed to record action history due to unknown error' }
+  }
 }
 
 /**

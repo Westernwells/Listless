@@ -77,6 +77,9 @@ export type Task = {
   due_date?: string
   project_list_id?: string
   user_id: string
+  sort_order: number
+  is_deleted: boolean
+  deleted_at?: string
   embedding?: number[] // Vector embedding for AI operations
   created_at: string
   updated_at: string
@@ -89,6 +92,9 @@ export type ProjectList = {
   color?: string
   area_id?: string
   user_id: string
+  sort_order: number
+  is_archived: boolean
+  is_template: boolean
   created_at: string
   updated_at: string
 }
@@ -99,6 +105,8 @@ export type Area = {
   description?: string
   color?: string
   user_id: string
+  sort_order: number
+  is_archived: boolean
   created_at: string
   updated_at: string
 }
@@ -131,3 +139,51 @@ export type ActionHistory = {
   batch_id?: string
   created_at: string
 }
+
+// Enhanced reordering types with better type safety
+export type ReorderMove = {
+  readonly id: string
+  readonly sort_order: number
+  readonly parent_id?: string | null
+}
+
+export type ReorderRequest = {
+  readonly type: 'tasks' | 'project_lists' | 'areas'
+  readonly moves: readonly ReorderMove[]
+}
+
+export type ReorderResponse = {
+  readonly type: string
+  readonly affectedIds: readonly string[]
+  readonly moveCount: number
+  readonly actionHistoryRecorded: boolean
+  readonly timestamp: string
+}
+
+// Enhanced error handling types following TypeScript best practices
+export type ReorderError = {
+  readonly success: false
+  readonly error: string
+  readonly details?: Record<string, unknown>
+  readonly timestamp: string
+}
+
+export type ReorderSuccess = {
+  readonly success: true
+  readonly affectedIds: readonly string[]
+  readonly timestamp: string
+}
+
+export type ReorderResult = ReorderSuccess | ReorderError
+
+// Validation error types for better error handling
+export type ValidationError = {
+  readonly field: string
+  readonly message: string
+  readonly code: string
+  readonly received?: unknown
+}
+
+export type ValidationResult<T> =
+  | { readonly success: true; readonly data: T }
+  | { readonly success: false; readonly errors: readonly ValidationError[] }
