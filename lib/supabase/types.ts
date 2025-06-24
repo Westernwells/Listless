@@ -77,6 +77,7 @@ export type Task = {
   due_date?: string
   project_list_id?: string
   user_id: string
+  is_deferred: boolean
   sort_order: number
   is_deleted: boolean
   deleted_at?: string

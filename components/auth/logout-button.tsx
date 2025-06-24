@@ -26,8 +26,8 @@ export function LogoutButton({
     try {
       setIsLoading(true)
       await signOut()
-      // Redirect will be handled by the auth context
-      window.location.href = '/auth/login'
+      // Force immediate redirect after successful logout
+      window.location.replace('/auth/login')
     } catch (error) {
       console.error('Error signing out:', error)
       setIsLoading(false)
@@ -63,7 +63,7 @@ export function LogoutIconButton({ className }: { className?: string }) {
     try {
       setIsLoading(true)
       await signOut()
-      window.location.href = '/auth/login'
+      window.location.replace('/auth/login')
     } catch (error) {
       console.error('Error signing out:', error)
       setIsLoading(false)

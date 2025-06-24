@@ -56,41 +56,18 @@ import { TaskSharingDialog } from "./task-sharing-dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { format } from "date-fns"
 import { taskService, type FrontendTask } from "@/lib/api/task-service"
-
-export interface Task {
-  id: string
-  content: string
-  checked: boolean
-  dueDate?: string
-  deferDate?: string
-  flagged?: boolean
-  priority?: string | null
-  tags?: string[]
-  notes?: string
-  completedAt?: string
-  isTrashed?: boolean
-}
+import { useTasks, useInboxTasks, useTodayTasks, useDeferredTasks, useCompletedTasks, useProjectTasks, useCreateTask, useUpdateTask, useToggleTask, useDeleteTask, Task } from "@/hooks/use-tasks"
 
 interface TaskListProps {
   initialTasks: Task[]
   title?: string
   showHeader?: boolean
+  view?: 'inbox' | 'today' | 'deferred' | 'completed' | 'project'
+  projectId?: string
 }
 
 // Create a special ID for the bottom drop area
 const BOTTOM_DROP_AREA_ID = "bottom-drop-area"
-
-// Utility function to convert FrontendTask to Task interface
-const mapFrontendTaskToTask = (frontendTask: FrontendTask): Task => ({
-  id: frontendTask.id,
-  content: frontendTask.content,
-  checked: frontendTask.checked,
-  dueDate: frontendTask.dueDate,
-  flagged: frontendTask.flagged,
-  tags: frontendTask.tags,
-  priority: frontendTask.priority,
-  notes: frontendTask.description,
-})
 
 // Bottom drop area component that integrates with DnD Kit
 function BottomDropArea() {
@@ -109,10 +86,40 @@ function BottomDropArea() {
   )
 }
 
-export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: TaskListProps) {
+export function TaskList({ initialTasks, title = "Tasks", showHeader = true, view, projectId }: TaskListProps) {
   const { duplicateTask, updateTaskDueDate, deleteTask, setTaskTags } = useTaskContext()
   const { selectedTaskIds, setSelectedTaskIds, isMultiDragging } = useDragContext()
-  const [tasks, setTasks] = useState<Task[]>(initialTasks)
+
+  // TanStack Query hooks for optimized task management - use appropriate hook based on view
+  const getTasksQuery = () => {
+    switch (view) {
+      case 'inbox':
+        return useInboxTasks()
+      case 'today':
+        return useTodayTasks()
+      case 'deferred':
+        return useDeferredTasks()
+      case 'completed':
+        return useCompletedTasks()
+      case 'project':
+        return useProjectTasks(projectId || '')
+      default:
+        return useTasks()
+    }
+  }
+
+  // Use initialTasks if provided, otherwise fetch from query
+  const queryResult = getTasksQuery()
+  const { data: queryTasks = [], isLoading: queryLoading, error: queryError } = queryResult
+
+  // Use initialTasks if provided and not empty, otherwise use query data
+  const tasks = initialTasks.length > 0 ? initialTasks : queryTasks
+  const isLoading = initialTasks.length > 0 ? false : queryLoading
+  const createTaskMutation = useCreateTask()
+  const updateTaskMutation = useUpdateTask()
+  const toggleTaskMutation = useToggleTask()
+  const deleteTaskMutation = useDeleteTask()
+
   const [activeId, setActiveId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [contextMenuTaskId, setContextMenuTaskId] = useState<string | null>(null)
@@ -127,10 +134,9 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
   const [containerWidth, setContainerWidth] = useState<number | null>(null)
   const [isClient, setIsClient] = useState(false)
 
-  // API state management
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [hasLoadedFromAPI, setHasLoadedFromAPI] = useState(false)
+  // Convert query error to string for display
+  const [dismissedError, setDismissedError] = useState<string | null>(null)
+  const error = queryError?.message && queryError.message !== dismissedError ? queryError.message : null
 
   // Date picker state
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
@@ -141,46 +147,6 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
   useEffect(() => {
     setIsClient(true)
   }, [])
-
-  // Load tasks from API
-  const loadTasks = async () => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      const result = await taskService.getTasks()
-      console.log('API result:', result)
-      if (result.error) {
-        setError(result.error)
-        console.error('Error loading tasks:', result.error)
-      } else if (result.data) {
-        console.log('Setting tasks from API:', result.data)
-        setTasks(result.data)
-        setHasLoadedFromAPI(true)
-      } else {
-        console.log('No data returned from API')
-      }
-    } catch (error) {
-      const errorMessage = 'Failed to load tasks'
-      setError(errorMessage)
-      console.error('Error loading tasks:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Load tasks on component mount
-  useEffect(() => {
-    loadTasks()
-  }, [])
-
-  // Update tasks when initialTasks changes (fallback for when API is not available)
-  useEffect(() => {
-    if (initialTasks.length > 0 && tasks.length === 0 && !hasLoadedFromAPI) {
-      console.log('Using fallback tasks from context:', initialTasks)
-      setTasks(initialTasks)
-    }
-  }, [initialTasks, tasks.length, hasLoadedFromAPI])
 
   // Measure container width for consistent drag overlay sizing
   useEffect(() => {
@@ -283,136 +249,20 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
 
     console.log("Drag end:", { active, over, selectedTaskIds: Array.from(selectedTaskIds) })
 
-    // Handle dropping at the bottom drop area
-    if (over && over.id === BOTTOM_DROP_AREA_ID) {
-      setTasks((items) => {
-        // If we're moving multiple selected tasks
-        if (selectedTaskIds.has(active.id as string) && selectedTaskIds.size > 1) {
-          // Get all selected tasks in their original order
-          const selectedTasksWithIndices = items
-            .map((task, index) => ({ task, index }))
-            .filter(({ task }) => selectedTaskIds.has(task.id))
-            .sort((a, b) => a.index - b.index)
+    // TODO: Implement drag and drop with TanStack Query
+    // For now, we'll disable drag and drop functionality to prevent errors
+    // This will be implemented in a future update with proper task reordering API
 
-          const selectedTasks = selectedTasksWithIndices.map(({ task }) => task)
-
-          // Get all unselected tasks
-          const unselectedTasks = items.filter((task) => !selectedTaskIds.has(task.id))
-
-          // Create the new array with selected tasks at the end
-          console.log("Moving multiple tasks to bottom:", {
-            selectedTasks: selectedTasks.map((t) => t.id),
-            unselectedTasks: unselectedTasks.map((t) => t.id),
-            result: [...unselectedTasks, ...selectedTasks].map((t) => t.id),
-          })
-
-          return [...unselectedTasks, ...selectedTasks]
-        } else {
-          // Moving a single task to the end
-          const oldIndex = items.findIndex((item) => item.id === active.id)
-          const newItems = [...items]
-          const [movedItem] = newItems.splice(oldIndex, 1)
-          newItems.push(movedItem)
-
-          console.log("Moving single task to bottom:", {
-            taskId: active.id,
-            from: oldIndex,
-            to: "end",
-            result: newItems.map((t) => t.id),
-          })
-
-          return newItems
-        }
-      })
-
-      setActiveId(null)
-      return
-    }
-
-    if (over && active.id !== over.id) {
-      setTasks((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id)
-        const newIndex = items.findIndex((item) => item.id === over.id)
-
-        // If we're moving multiple selected tasks
-        if (selectedTaskIds.has(active.id as string) && selectedTaskIds.size > 1) {
-          // Get all selected tasks in their original order
-          const selectedTasksWithIndices = items
-            .map((task, index) => ({ task, index }))
-            .filter(({ task }) => selectedTaskIds.has(task.id))
-            .sort((a, b) => a.index - b.index)
-
-          const selectedTasks = selectedTasksWithIndices.map(({ task }) => task)
-
-          // Get all unselected tasks
-          const unselectedTasks = items.filter((task) => !selectedTaskIds.has(task.id))
-
-          // Determine the insertion point
-          let insertAt = unselectedTasks.findIndex((task) => task.id === over.id)
-          if (insertAt === -1) insertAt = unselectedTasks.length
-
-          // Create the new array with selected tasks inserted at the right position
-          const newItems = [...unselectedTasks]
-          newItems.splice(insertAt, 0, ...selectedTasks)
-
-          console.log("Reordering multiple tasks:", {
-            selectedTasks: selectedTasks.map((t) => t.id),
-            insertAt,
-            newOrder: newItems.map((t) => t.id),
-          })
-
-          return newItems
-        } else {
-          // Moving a single task
-          console.log("Reordering single task:", {
-            taskId: active.id,
-            from: oldIndex,
-            to: newIndex,
-          })
-          return arrayMove(items, oldIndex, newIndex)
-        }
-      })
-    }
-
+    console.log("Drag and drop temporarily disabled - will be re-implemented with TanStack Query")
     setActiveId(null)
   }
 
-  const handleToggleTask = async (id: string) => {
-    // Optimistically update the UI
+  const handleToggleTask = (id: string) => {
     const currentTask = tasks.find(task => task.id === id)
     if (!currentTask) return
 
     const newCheckedState = !currentTask.checked
-    setTasks(prevTasks =>
-      prevTasks.map(task =>
-        task.id === id ? { ...task, checked: newCheckedState } : task
-      )
-    )
-
-    try {
-      const result = await taskService.toggleTask(id, newCheckedState)
-
-      if (result.error) {
-        // Revert the optimistic update on error
-        setTasks(prevTasks =>
-          prevTasks.map(task =>
-            task.id === id ? { ...task, checked: !newCheckedState } : task
-          )
-        )
-        setError(result.error)
-        console.error('Error toggling task:', result.error)
-      }
-    } catch (error) {
-      // Revert the optimistic update on error
-      setTasks(prevTasks =>
-        prevTasks.map(task =>
-          task.id === id ? { ...task, checked: !newCheckedState } : task
-        )
-      )
-      const errorMessage = 'Failed to update task'
-      setError(errorMessage)
-      console.error('Error toggling task:', error)
-    }
+    toggleTaskMutation.mutate({ id, completed: newCheckedState })
   }
 
   const handleTaskSelect = (id: string, event: React.MouseEvent) => {
@@ -488,65 +338,23 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
   const handleContextMenuAction = async (action: string) => {
     switch (action) {
       case "delete":
-        // Delete selected tasks using API
+        // Delete selected tasks using TanStack Query mutations
         const tasksToDelete = Array.from(selectedTaskIds)
-
-        // Optimistically remove from UI
-        setTasks(prevTasks =>
-          prevTasks.filter(task => !selectedTaskIds.has(task.id))
-        )
         setSelectedTaskIds(new Set())
 
-        // Delete from backend
-        try {
-          const deletePromises = tasksToDelete.map(id => taskService.deleteTask(id))
-          const results = await Promise.all(deletePromises)
-
-          // Check for any errors
-          const errors = results.filter(result => !result.success)
-          if (errors.length > 0) {
-            setError(`Failed to delete ${errors.length} task(s)`)
-            // Reload tasks to get the correct state
-            await loadTasks()
-          }
-        } catch (error) {
-          setError('Failed to delete tasks')
-          console.error('Error deleting tasks:', error)
-          // Reload tasks to get the correct state
-          await loadTasks()
-        }
+        // Delete each task using the mutation (with optimistic updates)
+        tasksToDelete.forEach(taskId => {
+          deleteTaskMutation.mutate(taskId)
+        })
         break
       case "complete":
-        // Complete selected tasks using API
+        // Complete selected tasks using TanStack Query mutations
         const tasksToComplete = Array.from(selectedTaskIds)
 
-        // Optimistically update UI
-        setTasks(prevTasks =>
-          prevTasks.map(task =>
-            selectedTaskIds.has(task.id) ? { ...task, checked: true } : task
-          )
-        )
-
-        // Update backend
-        try {
-          const updatePromises = tasksToComplete.map(id =>
-            taskService.toggleTask(id, true)
-          )
-          const results = await Promise.all(updatePromises)
-
-          // Check for any errors
-          const errors = results.filter(result => result.error)
-          if (errors.length > 0) {
-            setError(`Failed to complete ${errors.length} task(s)`)
-            // Reload tasks to get the correct state
-            await loadTasks()
-          }
-        } catch (error) {
-          setError('Failed to complete tasks')
-          console.error('Error completing tasks:', error)
-          // Reload tasks to get the correct state
-          await loadTasks()
-        }
+        // Complete each task using the mutation (with optimistic updates)
+        tasksToComplete.forEach(taskId => {
+          toggleTaskMutation.mutate({ id: taskId, completed: true })
+        })
         break
       case "duplicate":
         // Use the duplicateTask function from context
@@ -594,35 +402,61 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
     }
   }
 
-  const handleAddTask = async () => {
-    setIsLoading(true)
-    setError(null)
+  const handleAddTask = () => {
+    // Generate a unique temporary ID for this task creation
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 
-    try {
-      const result = await taskService.createTask({
+    // Immediately set the temporary task to editing mode for instant feedback
+    setEditingId(tempId)
+
+    // Prepare task data based on current view
+    const getTaskDataForView = () => {
+      const baseTaskData = {
+        tempId, // Pass the tempId to ensure consistency
         content: "New Task",
         checked: false,
         flagged: false,
         tags: ["New"],
-        priority: "medium"
-      })
-
-      if (result.error) {
-        setError(result.error)
-        console.error('Error creating task:', result.error)
-      } else if (result.data) {
-        // Map FrontendTask to Task interface
-        const newTask = mapFrontendTaskToTask(result.data)
-        setTasks(prevTasks => [...prevTasks, newTask])
-        setEditingId(result.data.id)
+        priority: "medium" as const
       }
-    } catch (error) {
-      const errorMessage = 'Failed to create task'
-      setError(errorMessage)
-      console.error('Error creating task:', error)
-    } finally {
-      setIsLoading(false)
+
+      switch (view) {
+        case 'today':
+          // For Today view, set due date to end of today to avoid "past date" constraint
+          const endOfToday = new Date()
+          endOfToday.setHours(23, 59, 59, 999)
+          return {
+            ...baseTaskData,
+            dueDate: endOfToday.toISOString()
+          }
+        case 'project':
+          // For Project view, assign to the current project
+          return {
+            ...baseTaskData,
+            project_list_id: projectId
+          }
+        case 'inbox':
+        case 'deferred':
+        default:
+          // For Inbox and other views, use base data (no project, no due date)
+          return baseTaskData
+      }
     }
+
+    createTaskMutation.mutate(getTaskDataForView(), {
+      onSuccess: (data) => {
+        // If the temporary task is still being edited, switch to the real task ID
+        if (editingId === tempId) {
+          setEditingId(data.id)
+        }
+      },
+      onError: () => {
+        // If the task creation failed and we're still editing the temp task, clear editing
+        if (editingId === tempId) {
+          setEditingId(null)
+        }
+      }
+    })
   }
 
   const handleTaskExpand = (taskId: string) => {
@@ -676,53 +510,9 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
     setTagSelectorOpen(false)
   }
 
-  const handleEditTask = async (id: string, newContent: string) => {
-    // Optimistically update the UI
-    setTasks(prevTasks =>
-      prevTasks.map(task =>
-        task.id === id ? { ...task, content: newContent } : task
-      )
-    )
+  const handleEditTask = (id: string, newContent: string) => {
     setEditingId(null)
-
-    try {
-      const result = await taskService.updateTask(id, { content: newContent })
-
-      if (result.error) {
-        // Revert the optimistic update on error
-        const originalTask = tasks.find(task => task.id === id)
-        if (originalTask) {
-          setTasks(prevTasks =>
-            prevTasks.map(task =>
-              task.id === id ? originalTask : task
-            )
-          )
-        }
-        setError(result.error)
-        console.error('Error updating task:', result.error)
-      } else if (result.data) {
-        // Update with the actual data from the server, mapping FrontendTask to Task
-        const updatedTask = mapFrontendTaskToTask(result.data)
-        setTasks(prevTasks =>
-          prevTasks.map(task =>
-            task.id === id ? updatedTask : task
-          )
-        )
-      }
-    } catch (error) {
-      // Revert the optimistic update on error
-      const originalTask = tasks.find(task => task.id === id)
-      if (originalTask) {
-        setTasks(prevTasks =>
-          prevTasks.map(task =>
-            task.id === id ? originalTask : task
-          )
-        )
-      }
-      const errorMessage = 'Failed to update task'
-      setError(errorMessage)
-      console.error('Error updating task:', error)
-    }
+    updateTaskMutation.mutate({ id, updates: { content: newContent } })
   }
 
   // Create a list of sortable items that includes the bottom drop area
@@ -738,7 +528,7 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
               {error}
             </div>
             <button
-              onClick={() => setError(null)}
+              onClick={() => setDismissedError(error)}
               className="ml-auto text-red-600 hover:text-red-800"
             >
               ×
@@ -811,24 +601,25 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
         position={datePickerPosition}
       />
 
-      {/* Floating Add Task button with tooltip */}
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              className="absolute bottom-6 right-6 bg-black text-white rounded-[6px] hover:bg-black/90 px-4"
-              onClick={handleAddTask}
-              disabled={isLoading}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              {isLoading ? 'Adding...' : 'Add Task'}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="left">
-            <p>Add a new task (Space)</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      {/* Floating Add Task button with tooltip - Hidden in completed view */}
+      {view !== 'completed' && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                className="absolute bottom-6 right-6 bg-black text-white rounded-[6px] hover:bg-black/90 px-4"
+                onClick={handleAddTask}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add Task
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left">
+              <p>Add a new task (Space)</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
 
       {/* Tag Selector Dialog */}
       <TagSelectorDialog

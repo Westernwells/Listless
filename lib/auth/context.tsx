@@ -88,22 +88,21 @@ export function AuthProvider({
 
   const signOut = async () => {
     try {
-      setLoading(true)
+      // Don't set loading during logout to avoid UI flicker
       const { error } = await supabase.auth.signOut()
-      
+
       if (error) {
         console.error('Error signing out:', error)
         throw error
       }
 
+      // Clear auth state immediately
       setUser(null)
       setUserProfile(null)
       setSession(null)
     } catch (error) {
-      console.error('Error signing out:', error)
+      console.error('Error in signOut:', error)
       throw error
-    } finally {
-      setLoading(false)
     }
   }
 

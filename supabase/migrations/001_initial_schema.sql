@@ -125,6 +125,7 @@ create table public.tasks (
   priority priority_level default 'medium'::priority_level not null,
   due_date timestamp with time zone,
   completed_at timestamp with time zone,
+  is_deferred boolean default false not null,
   sort_order integer default 0 not null,
   is_deleted boolean default false not null,
   deleted_at timestamp with time zone,

@@ -23,9 +23,11 @@ export const UpdateTaskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(500, 'Title too long').optional(),
   description: z.string().optional(),
   completed: z.boolean().optional(),
+  completed_at: z.string().datetime().optional().nullable(),
   priority: TaskPrioritySchema.optional(),
   due_date: z.string().datetime().optional().nullable(),
   project_list_id: z.string().uuid().optional().nullable(),
+  is_deferred: z.boolean().optional(),
   sort_order: z.number().int().min(0).optional(),
   is_deleted: z.boolean().optional(),
 })
@@ -50,9 +52,12 @@ export const ConvertToProjectSchema = z.object({
 
 // Query parameters for task listing
 export const TaskQuerySchema = z.object({
-  project_list_id: z.string().uuid().optional(),
+  project_list_id: z.string().optional(), // Allow any string for backward compatibility with frontend IDs
   include_completed: z.string().transform(val => val === 'true').optional(),
   include_deleted: z.string().transform(val => val === 'true').optional(),
+  view: z.enum(['inbox', 'today', 'deferred', 'completed', 'project']).optional(),
+  due_date: z.string().datetime().optional(),
+  is_deferred: z.string().transform(val => val === 'true').optional(),
   limit: z.string().transform(val => parseInt(val, 10)).pipe(z.number().int().min(1).max(100)).optional(),
   offset: z.string().transform(val => parseInt(val, 10)).pipe(z.number().int().min(0)).optional(),
 })

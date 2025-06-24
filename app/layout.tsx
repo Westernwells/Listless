@@ -2,6 +2,7 @@ import type React from "react"
 import "@/app/globals.css"
 import { Inter } from "next/font/google"
 import { AuthProvider } from "@/lib/auth/context"
+import { QueryProvider } from "@/components/providers/query-provider"
 import { createClient } from "@/lib/supabase/server"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
@@ -18,12 +19,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <title>AI Task Management</title>
       </head>
       <body className={`${inter.variable} font-sans`}>
-        <AuthProvider
-          initialSession={session}
-          initialUser={session?.user ?? null}
-        >
-          {children}
-        </AuthProvider>
+        <QueryProvider>
+          <AuthProvider
+            initialSession={session}
+            initialUser={session?.user ?? null}
+          >
+            {children}
+          </AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   )

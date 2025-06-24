@@ -29,7 +29,7 @@ function LoginPage() {
   const handleSubmit = async (formData: FormData) => {
     setIsLoading(true)
     setError(null)
-    
+
     try {
       await signInAction(formData)
     } catch (error) {

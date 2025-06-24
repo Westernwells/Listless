@@ -16,7 +16,7 @@ import { createClient } from '@/lib/supabase/server'
 /**
  * PUT /api/project_lists/[id] - Update a project list
  */
-export const PUT = withErrorHandling(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const PUT = withErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   // Authenticate user
   const authResult = await getAuthenticatedUser()
   if (!authResult.success) {
@@ -24,8 +24,11 @@ export const PUT = withErrorHandling(async (request: NextRequest, { params }: { 
   }
   const { user } = authResult
 
+  // Await params since it's a Promise in Next.js App Router
+  const resolvedParams = await params
+
   // Validate parameters
-  const paramValidation = validateParams(params, ProjectListIdSchema)
+  const paramValidation = validateParams(resolvedParams, ProjectListIdSchema)
   if (!paramValidation.success) {
     return paramValidation.error
   }
@@ -117,7 +120,7 @@ export const PUT = withErrorHandling(async (request: NextRequest, { params }: { 
 /**
  * DELETE /api/project_lists/[id] - Delete a project list
  */
-export const DELETE = withErrorHandling(async (request: NextRequest, { params }: { params: { id: string } }) => {
+export const DELETE = withErrorHandling(async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   // Authenticate user
   const authResult = await getAuthenticatedUser()
   if (!authResult.success) {
@@ -125,8 +128,11 @@ export const DELETE = withErrorHandling(async (request: NextRequest, { params }:
   }
   const { user } = authResult
 
+  // Await params since it's a Promise in Next.js App Router
+  const resolvedParams = await params
+
   // Validate parameters
-  const paramValidation = validateParams(params, ProjectListIdSchema)
+  const paramValidation = validateParams(resolvedParams, ProjectListIdSchema)
   if (!paramValidation.success) {
     return paramValidation.error
   }
