@@ -18,10 +18,11 @@ import { createClient } from '@/lib/supabase/server'
  */
 export const POST = withErrorHandling(async (request: NextRequest) => {
   // Authenticate user
-  const authResult = await getAuthenticatedUser()
-  if (!authResult.success) {
-    return authResult.error
+  const authResult = await getAuthenticatedUser();
+  if (!authResult.success || !authResult.user) {
+    return authResult.error;
   }
+  console.log(`Running on port: ${process.env.PORT || 3000}`);
   const { user } = authResult
 
   // Validate request body
@@ -38,7 +39,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     // Prepare area data for insertion
     const newArea = {
       id: areaId,
-      user_id: user.id,
+      user_id: authResult.user.id,
       name: areaData.name,
       description: areaData.description || null,
       color: areaData.color,
@@ -70,7 +71,7 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }
 
     // Record action for undo/redo functionality
-    await recordAreaCreation(user.id, areaId, createdArea)
+    await recordAreaCreation(authResult.user.id, areaId, createdArea)
 
     return createSuccessResponse(
       createdArea,

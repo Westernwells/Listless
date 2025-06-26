@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Flag, Info } from "lucide-react"
@@ -100,7 +100,8 @@ export function TaskItem({
     }
   }, [isExpanded, isClosing])
 
-  const handleDoubleClick = (e: React.MouseEvent) => {
+  // Optimize event handlers with useCallback to prevent unnecessary re-renders
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     if (!isExpanded && !isClosing) {
@@ -108,9 +109,9 @@ export function TaskItem({
     } else if (setEditing) {
       setEditing()
     }
-  }
+  }, [isExpanded, isClosing, onExpand, setEditing])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       onEdit(editValue)
       setLocalIsEditing(false)
@@ -119,34 +120,36 @@ export function TaskItem({
       onEdit(content)
       setLocalIsEditing(false)
     }
-  }
+  }, [editValue, content, onEdit])
 
-  const handleBlur = () => {
+  const handleBlur = useCallback(() => {
     onEdit(editValue)
     // Only exit editing mode if not expanded
     if (!isExpanded) {
       setLocalIsEditing(false)
     }
-  }
+  }, [editValue, onEdit, isExpanded])
 
-  const handleClick = (e: React.MouseEvent) => {
+  const handleClick = useCallback((e: React.MouseEvent) => {
     if (onSelect && !localIsEditing) {
       onSelect(e)
     }
-  }
+  }, [onSelect, localIsEditing])
 
-  const handleExpandToggle = () => {
+  const handleExpandToggle = useCallback(() => {
     if (isExpanded) {
       setIsClosing(true)
       setLocalIsEditing(false)
-      // Delay the actual state change to allow animation to complete
-      setTimeout(() => {
-        onExpand()
-      }, 500) // Match the animation duration
+      // Use requestAnimationFrame for better performance instead of setTimeout
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          onExpand()
+        }, 500) // Match the animation duration
+      })
     } else {
       onExpand()
     }
-  }
+  }, [isExpanded, onExpand])
 
   // Determine which tags to display and if we need an ellipsis
   const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS)
@@ -203,26 +206,27 @@ export function TaskItem({
           />
         ) : (
           <div
-            onClick={(e) => {
+            onClick={useCallback((e: React.MouseEvent) => {
+              // Prevent event propagation to avoid triggering selection
+              e.stopPropagation()
+
               // Only expand the task on click, don't enter edit mode in inline view
               if (!isExpanded) {
                 onExpand()
               } else {
                 // Only allow editing in expanded view
                 setLocalIsEditing(true)
-                // Use setTimeout to ensure the state update happens before focusing
-                setTimeout(() => {
+                // Use requestAnimationFrame for better performance
+                requestAnimationFrame(() => {
                   if (inputRef.current) {
                     inputRef.current.focus()
                     // Position cursor at the end without selecting text
                     const length = inputRef.current.value.length
                     inputRef.current.setSelectionRange(length, length)
                   }
-                }, 0)
+                })
               }
-              // Prevent event propagation to avoid triggering selection
-              e.stopPropagation()
-            }}
+            }, [isExpanded, onExpand])}
             className={cn(
               "flex-1 cursor-pointer text-[14px] font-normal text-[#0F172A] truncate",
               checked && "line-through text-muted-foreground",

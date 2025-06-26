@@ -439,8 +439,12 @@ export function useToggleTask() {
       // Optimistically update all cache entries
       cacheEntries.forEach(([queryKey, data]) => {
         if (Array.isArray(data)) {
-          const queryKeyStr = JSON.stringify(queryKey)
-          const isCompletedTasksCache = queryKeyStr.includes('"completed":true')
+          const queryKeyObj = queryKey[2] as Record<string, any> | undefined;
+          const isCompletedTasksCache =
+            typeof queryKeyObj === 'object' &&
+            queryKeyObj !== null &&
+            'view' in queryKeyObj &&
+            queryKeyObj.view === "completed";
 
           queryClient.setQueryData(
             queryKey,
@@ -497,14 +501,21 @@ export function useToggleTask() {
     },
     onSuccess: (data, variables, context) => {
       // Update cache with the real data from server
-      const mappedTask = mapFrontendTaskToTask(data)
+      const mappedTask = mapFrontendTaskToTask(data);
 
       // Update all relevant cache entries with the server response
+      // Note: Removed queryClient.invalidateQueries to prevent excessive re-renders
+
+      // Get all task list cache entries and update them with server data
       const cacheEntries = queryClient.getQueriesData({ queryKey: queryKeys.tasks.lists() })
       cacheEntries.forEach(([queryKey, cachedData]) => {
         if (Array.isArray(cachedData)) {
-          const queryKeyStr = JSON.stringify(queryKey)
-          const isCompletedTasksCache = queryKeyStr.includes('"completed":true')
+          const queryKeyObj = queryKey[2] as Record<string, any> | undefined;
+          const isCompletedTasksCache =
+            typeof queryKeyObj === 'object' &&
+            queryKeyObj !== null &&
+            'view' in queryKeyObj &&
+            queryKeyObj.view === "completed";
 
           queryClient.setQueryData(
             queryKey,
@@ -537,7 +548,7 @@ export function useToggleTask() {
                 }
               }
             }
-          )
+          );
         }
       })
     },

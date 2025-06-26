@@ -159,7 +159,8 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
       }
 
       updateWidth()
-      window.addEventListener("resize", updateWidth)
+      // Use passive listener for better performance
+      window.addEventListener("resize", updateWidth, { passive: true })
       return () => window.removeEventListener("resize", updateWidth)
     }
   }, [])
@@ -215,7 +216,8 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown)
+    // Use passive: false only when we need to preventDefault
+    window.addEventListener("keydown", handleKeyDown, { passive: false })
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [tasks, selectedTaskIds, editingId, expandedTaskId, setSelectedTaskIds])
 
@@ -336,33 +338,49 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
   }
 
   const handleContextMenuAction = async (action: string) => {
+    // Use requestIdleCallback for better performance if available
+    const executeAction = (callback: () => void) => {
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        window.requestIdleCallback(callback)
+      } else {
+        // Fallback to setTimeout for browsers without requestIdleCallback
+        setTimeout(callback, 0)
+      }
+    }
+
     switch (action) {
       case "delete":
-        // Delete selected tasks using TanStack Query mutations
-        const tasksToDelete = Array.from(selectedTaskIds)
-        setSelectedTaskIds(new Set())
+        executeAction(() => {
+          // Delete selected tasks using TanStack Query mutations
+          const tasksToDelete = Array.from(selectedTaskIds)
+          setSelectedTaskIds(new Set())
 
-        // Delete each task using the mutation (with optimistic updates)
-        tasksToDelete.forEach(taskId => {
-          deleteTaskMutation.mutate(taskId)
+          // Delete each task using the mutation (with optimistic updates)
+          tasksToDelete.forEach(taskId => {
+            deleteTaskMutation.mutate(taskId)
+          })
         })
         break
       case "complete":
-        // Complete selected tasks using TanStack Query mutations
-        const tasksToComplete = Array.from(selectedTaskIds)
+        executeAction(() => {
+          // Complete selected tasks using TanStack Query mutations
+          const tasksToComplete = Array.from(selectedTaskIds)
 
-        // Complete each task using the mutation (with optimistic updates)
-        tasksToComplete.forEach(taskId => {
-          toggleTaskMutation.mutate({ id: taskId, completed: true })
+          // Complete each task using the mutation (with optimistic updates)
+          tasksToComplete.forEach(taskId => {
+            toggleTaskMutation.mutate({ id: taskId, completed: true })
+          })
         })
         break
       case "duplicate":
-        // Use the duplicateTask function from context
-        if (selectedTaskIds.size > 0) {
-          selectedTaskIds.forEach((id) => {
-            duplicateTask(id)
-          })
-        }
+        executeAction(() => {
+          // Use the duplicateTask function from context
+          if (selectedTaskIds.size > 0) {
+            selectedTaskIds.forEach((id) => {
+              duplicateTask(id)
+            })
+          }
+        })
         break
       case "setDueDate":
         // Close the context menu

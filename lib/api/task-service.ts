@@ -143,9 +143,14 @@ export class TaskService {
         return { data: null, error: errorData.message || 'Failed to fetch tasks' }
       }
 
-      const result = await response.json()
+      const result = await response.json();
       // result.data is already the array of tasks from the API
-      const backendTasks: BackendTask[] = result.data || []
+      let backendTasks: BackendTask[] = result.data || [];
+
+      // Apply view filtering on the frontend
+      if (filters?.view === 'completed') {
+        backendTasks = backendTasks.filter(task => task.completed);
+      }
 
       // Add error handling for transformation
       try {
@@ -183,16 +188,12 @@ export class TaskService {
       // result.data is already the array of tasks from the API
       const backendTasks: BackendTask[] = result.data || []
 
-      // Filter to only completed tasks on the frontend
-      const completedBackendTasks = backendTasks.filter(task => task.completed)
-
       // Add error handling for transformation
       try {
-        const frontendTasks = completedBackendTasks.map(transformBackendToFrontend)
+        const frontendTasks = backendTasks.map(transformBackendToFrontend)
         return { data: frontendTasks, error: null }
       } catch (transformError) {
         console.error('Error transforming completed tasks:', transformError)
-        console.error('Backend tasks data:', completedBackendTasks)
         return { data: null, error: 'Failed to transform completed task data' }
       }
     } catch (error) {
@@ -252,9 +253,7 @@ export class TaskService {
     try {
       const backendData = transformFrontendToBackend(updates)
 
-      // Debug logging
-      console.log('Frontend updates:', updates)
-      console.log('Backend data being sent:', backendData)
+
 
       const response = await fetch(`/api/tasks/${taskId}`, {
         method: 'PUT',

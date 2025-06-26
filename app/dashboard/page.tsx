@@ -72,7 +72,7 @@ export default function Page() {
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown)
+    window.addEventListener("keydown", handleKeyDown, { passive: false })
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [])
 
