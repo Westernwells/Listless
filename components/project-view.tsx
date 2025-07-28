@@ -146,7 +146,7 @@ export function ProjectView({ projectId }: ProjectViewProps) {
 
       {/* Project Tasks - Modified to hide the header */}
       <div className="flex-1 overflow-auto">
-        <TaskList initialTasks={tasks} title="" showHeader={false} />
+        <TaskList initialTasks={[]} title="" showHeader={false} view="project" projectId={projectId} />
       </div>
     </div>
   )

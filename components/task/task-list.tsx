@@ -55,20 +55,15 @@ import { TaskConversionDialog } from "./task-conversion-dialog"
 import { TaskSharingDialog } from "./task-sharing-dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { format } from "date-fns"
-
-export interface Task {
-  id: string
-  content: string
-  checked: boolean
-  dueDate?: string
-  flagged?: boolean
-  tags?: string[]
-}
+import { taskService, type FrontendTask } from "@/lib/api/task-service"
+import { useTasks, useInboxTasks, useTodayTasks, useDeferredTasks, useCompletedTasks, useProjectTasks, useCreateTask, useUpdateTask, useToggleTask, useDeleteTask, Task } from "@/hooks/use-tasks"
 
 interface TaskListProps {
   initialTasks: Task[]
   title?: string
   showHeader?: boolean
+  view?: 'inbox' | 'today' | 'deferred' | 'completed' | 'project'
+  projectId?: string
 }
 
 // Create a special ID for the bottom drop area
@@ -91,10 +86,40 @@ function BottomDropArea() {
   )
 }
 
-export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: TaskListProps) {
+export function TaskList({ initialTasks, title = "Tasks", showHeader = true, view, projectId }: TaskListProps) {
   const { duplicateTask, updateTaskDueDate, deleteTask, setTaskTags } = useTaskContext()
   const { selectedTaskIds, setSelectedTaskIds, isMultiDragging } = useDragContext()
-  const [tasks, setTasks] = useState<Task[]>(initialTasks)
+
+  // TanStack Query hooks for optimized task management - use appropriate hook based on view
+  const getTasksQuery = () => {
+    switch (view) {
+      case 'inbox':
+        return useInboxTasks()
+      case 'today':
+        return useTodayTasks()
+      case 'deferred':
+        return useDeferredTasks()
+      case 'completed':
+        return useCompletedTasks()
+      case 'project':
+        return useProjectTasks(projectId || '')
+      default:
+        return useTasks()
+    }
+  }
+
+  // Use initialTasks if provided, otherwise fetch from query
+  const queryResult = getTasksQuery()
+  const { data: queryTasks = [], isLoading: queryLoading, error: queryError } = queryResult
+
+  // Use initialTasks if provided and not empty, otherwise use query data
+  const tasks = initialTasks.length > 0 ? initialTasks : queryTasks
+  const isLoading = initialTasks.length > 0 ? false : queryLoading
+  const createTaskMutation = useCreateTask()
+  const updateTaskMutation = useUpdateTask()
+  const toggleTaskMutation = useToggleTask()
+  const deleteTaskMutation = useDeleteTask()
+
   const [activeId, setActiveId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [contextMenuTaskId, setContextMenuTaskId] = useState<string | null>(null)
@@ -109,6 +134,10 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
   const [containerWidth, setContainerWidth] = useState<number | null>(null)
   const [isClient, setIsClient] = useState(false)
 
+  // Convert query error to string for display
+  const [dismissedError, setDismissedError] = useState<string | null>(null)
+  const error = queryError?.message && queryError.message !== dismissedError ? queryError.message : null
+
   // Date picker state
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
   const [datePickerAction, setDatePickerAction] = useState<"dueDate" | "defer">("dueDate")
@@ -118,11 +147,6 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
   useEffect(() => {
     setIsClient(true)
   }, [])
-
-  // Update tasks when initialTasks changes
-  useEffect(() => {
-    setTasks(initialTasks)
-  }, [initialTasks])
 
   // Measure container width for consistent drag overlay sizing
   useEffect(() => {
@@ -135,7 +159,8 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
       }
 
       updateWidth()
-      window.addEventListener("resize", updateWidth)
+      // Use passive listener for better performance
+      window.addEventListener("resize", updateWidth, { passive: true })
       return () => window.removeEventListener("resize", updateWidth)
     }
   }, [])
@@ -191,7 +216,8 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown)
+    // Use passive: false only when we need to preventDefault
+    window.addEventListener("keydown", handleKeyDown, { passive: false })
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [tasks, selectedTaskIds, editingId, expandedTaskId, setSelectedTaskIds])
 
@@ -225,102 +251,20 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
 
     console.log("Drag end:", { active, over, selectedTaskIds: Array.from(selectedTaskIds) })
 
-    // Handle dropping at the bottom drop area
-    if (over && over.id === BOTTOM_DROP_AREA_ID) {
-      setTasks((items) => {
-        // If we're moving multiple selected tasks
-        if (selectedTaskIds.has(active.id as string) && selectedTaskIds.size > 1) {
-          // Get all selected tasks in their original order
-          const selectedTasksWithIndices = items
-            .map((task, index) => ({ task, index }))
-            .filter(({ task }) => selectedTaskIds.has(task.id))
-            .sort((a, b) => a.index - b.index)
+    // TODO: Implement drag and drop with TanStack Query
+    // For now, we'll disable drag and drop functionality to prevent errors
+    // This will be implemented in a future update with proper task reordering API
 
-          const selectedTasks = selectedTasksWithIndices.map(({ task }) => task)
-
-          // Get all unselected tasks
-          const unselectedTasks = items.filter((task) => !selectedTaskIds.has(task.id))
-
-          // Create the new array with selected tasks at the end
-          console.log("Moving multiple tasks to bottom:", {
-            selectedTasks: selectedTasks.map((t) => t.id),
-            unselectedTasks: unselectedTasks.map((t) => t.id),
-            result: [...unselectedTasks, ...selectedTasks].map((t) => t.id),
-          })
-
-          return [...unselectedTasks, ...selectedTasks]
-        } else {
-          // Moving a single task to the end
-          const oldIndex = items.findIndex((item) => item.id === active.id)
-          const newItems = [...items]
-          const [movedItem] = newItems.splice(oldIndex, 1)
-          newItems.push(movedItem)
-
-          console.log("Moving single task to bottom:", {
-            taskId: active.id,
-            from: oldIndex,
-            to: "end",
-            result: newItems.map((t) => t.id),
-          })
-
-          return newItems
-        }
-      })
-
-      setActiveId(null)
-      return
-    }
-
-    if (over && active.id !== over.id) {
-      setTasks((items) => {
-        const oldIndex = items.findIndex((item) => item.id === active.id)
-        const newIndex = items.findIndex((item) => item.id === over.id)
-
-        // If we're moving multiple selected tasks
-        if (selectedTaskIds.has(active.id as string) && selectedTaskIds.size > 1) {
-          // Get all selected tasks in their original order
-          const selectedTasksWithIndices = items
-            .map((task, index) => ({ task, index }))
-            .filter(({ task }) => selectedTaskIds.has(task.id))
-            .sort((a, b) => a.index - b.index)
-
-          const selectedTasks = selectedTasksWithIndices.map(({ task }) => task)
-
-          // Get all unselected tasks
-          const unselectedTasks = items.filter((task) => !selectedTaskIds.has(task.id))
-
-          // Determine the insertion point
-          let insertAt = unselectedTasks.findIndex((task) => task.id === over.id)
-          if (insertAt === -1) insertAt = unselectedTasks.length
-
-          // Create the new array with selected tasks inserted at the right position
-          const newItems = [...unselectedTasks]
-          newItems.splice(insertAt, 0, ...selectedTasks)
-
-          console.log("Reordering multiple tasks:", {
-            selectedTasks: selectedTasks.map((t) => t.id),
-            insertAt,
-            newOrder: newItems.map((t) => t.id),
-          })
-
-          return newItems
-        } else {
-          // Moving a single task
-          console.log("Reordering single task:", {
-            taskId: active.id,
-            from: oldIndex,
-            to: newIndex,
-          })
-          return arrayMove(items, oldIndex, newIndex)
-        }
-      })
-    }
-
+    console.log("Drag and drop temporarily disabled - will be re-implemented with TanStack Query")
     setActiveId(null)
   }
 
   const handleToggleTask = (id: string) => {
-    setTasks((prevTasks) => prevTasks.map((task) => (task.id === id ? { ...task, checked: !task.checked } : task)))
+    const currentTask = tasks.find(task => task.id === id)
+    if (!currentTask) return
+
+    const newCheckedState = !currentTask.checked
+    toggleTaskMutation.mutate({ id, completed: newCheckedState })
   }
 
   const handleTaskSelect = (id: string, event: React.MouseEvent) => {
@@ -393,23 +337,50 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
     setContextMenuTaskId(null)
   }
 
-  const handleContextMenuAction = (action: string) => {
+  const handleContextMenuAction = async (action: string) => {
+    // Use requestIdleCallback for better performance if available
+    const executeAction = (callback: () => void) => {
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        window.requestIdleCallback(callback)
+      } else {
+        // Fallback to setTimeout for browsers without requestIdleCallback
+        setTimeout(callback, 0)
+      }
+    }
+
     switch (action) {
       case "delete":
-        // Delete selected tasks
-        selectedTaskIds.forEach((id) => deleteTask(id))
-        setSelectedTaskIds(new Set())
+        executeAction(() => {
+          // Delete selected tasks using TanStack Query mutations
+          const tasksToDelete = Array.from(selectedTaskIds)
+          setSelectedTaskIds(new Set())
+
+          // Delete each task using the mutation (with optimistic updates)
+          tasksToDelete.forEach(taskId => {
+            deleteTaskMutation.mutate(taskId)
+          })
+        })
         break
       case "complete":
-        setTasks(tasks.map((task) => (selectedTaskIds.has(task.id) ? { ...task, checked: true } : task)))
+        executeAction(() => {
+          // Complete selected tasks using TanStack Query mutations
+          const tasksToComplete = Array.from(selectedTaskIds)
+
+          // Complete each task using the mutation (with optimistic updates)
+          tasksToComplete.forEach(taskId => {
+            toggleTaskMutation.mutate({ id: taskId, completed: true })
+          })
+        })
         break
       case "duplicate":
-        // Use the duplicateTask function from context
-        if (selectedTaskIds.size > 0) {
-          selectedTaskIds.forEach((id) => {
-            duplicateTask(id)
-          })
-        }
+        executeAction(() => {
+          // Use the duplicateTask function from context
+          if (selectedTaskIds.size > 0) {
+            selectedTaskIds.forEach((id) => {
+              duplicateTask(id)
+            })
+          }
+        })
         break
       case "setDueDate":
         // Close the context menu
@@ -450,15 +421,60 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
   }
 
   const handleAddTask = () => {
-    const newTask = {
-      id: `task-${Date.now()}`,
-      content: "New Task",
-      checked: false,
-      flagged: false,
-      tags: ["New"],
+    // Generate a unique temporary ID for this task creation
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+    // Immediately set the temporary task to editing mode for instant feedback
+    setEditingId(tempId)
+
+    // Prepare task data based on current view
+    const getTaskDataForView = () => {
+      const baseTaskData = {
+        tempId, // Pass the tempId to ensure consistency
+        content: "New Task",
+        checked: false,
+        flagged: false,
+        tags: ["New"],
+        priority: "medium" as const
+      }
+
+      switch (view) {
+        case 'today':
+          // For Today view, set due date to end of today to avoid "past date" constraint
+          const endOfToday = new Date()
+          endOfToday.setHours(23, 59, 59, 999)
+          return {
+            ...baseTaskData,
+            dueDate: endOfToday.toISOString()
+          }
+        case 'project':
+          // For Project view, assign to the current project
+          return {
+            ...baseTaskData,
+            project_list_id: projectId
+          }
+        case 'inbox':
+        case 'deferred':
+        default:
+          // For Inbox and other views, use base data (no project, no due date)
+          return baseTaskData
+      }
     }
-    setTasks([...tasks, newTask])
-    setEditingId(newTask.id)
+
+    createTaskMutation.mutate(getTaskDataForView(), {
+      onSuccess: (data) => {
+        // If the temporary task is still being edited, switch to the real task ID
+        if (editingId === tempId) {
+          setEditingId(data.id)
+        }
+      },
+      onError: () => {
+        // If the task creation failed and we're still editing the temp task, clear editing
+        if (editingId === tempId) {
+          setEditingId(null)
+        }
+      }
+    })
   }
 
   const handleTaskExpand = (taskId: string) => {
@@ -513,8 +529,8 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
   }
 
   const handleEditTask = (id: string, newContent: string) => {
-    setTasks((prevTasks) => prevTasks.map((task) => (task.id === id ? { ...task, content: newContent } : task)))
     setEditingId(null)
+    updateTaskMutation.mutate({ id, updates: { content: newContent } })
   }
 
   // Create a list of sortable items that includes the bottom drop area
@@ -522,6 +538,23 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
 
   return (
     <div className="flex flex-col h-full relative" ref={containerRef}>
+      {/* Error Display */}
+      {error && (
+        <div className="mx-4 mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+          <div className="flex items-center">
+            <div className="text-red-800 text-sm">
+              {error}
+            </div>
+            <button
+              onClick={() => setDismissedError(error)}
+              className="ml-auto text-red-600 hover:text-red-800"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
       {showHeader && (
         <div className="flex items-center justify-between px-12 pt-12 pb-6">
           <div>
@@ -586,23 +619,25 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true }: T
         position={datePickerPosition}
       />
 
-      {/* Floating Add Task button with tooltip */}
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              className="absolute bottom-6 right-6 bg-black text-white rounded-[6px] hover:bg-black/90 px-4"
-              onClick={handleAddTask}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Add Task
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="left">
-            <p>Add a new task (Space)</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      {/* Floating Add Task button with tooltip - Hidden in completed view */}
+      {view !== 'completed' && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                className="absolute bottom-6 right-6 bg-black text-white rounded-[6px] hover:bg-black/90 px-4"
+                onClick={handleAddTask}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add Task
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left">
+              <p>Add a new task (Space)</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
 
       {/* Tag Selector Dialog */}
       <TagSelectorDialog

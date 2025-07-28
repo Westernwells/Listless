@@ -9,6 +9,25 @@ begin
 end;
 $$;
 
+-- Function to automatically create user profile when a user signs up
+create or replace function private.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  -- Create user profile in public.users
+  insert into public.users (id, name)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'name', new.email)
+  );
+
+  return new;
+end;
+$$;
+
 -- Function to automatically create user settings when a user is created
 create or replace function private.create_user_settings()
 returns trigger
@@ -146,6 +165,11 @@ create trigger update_tasks_updated_at
 create trigger update_tags_updated_at
   before update on public.tags
   for each row execute function private.update_updated_at_column();
+
+-- Create trigger for automatic user profile creation on signup
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function private.handle_new_user();
 
 -- Create trigger for automatic user settings creation
 create trigger create_user_settings_on_signup

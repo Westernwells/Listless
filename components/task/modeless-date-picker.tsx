@@ -44,7 +44,7 @@ export function ModelessDatePicker({ open, onClose, onSelect, title, position, i
     }
 
     if (open) {
-      document.addEventListener("keydown", handleKeyDown)
+      document.addEventListener("keydown", handleKeyDown, { passive: false })
     }
 
     return () => {

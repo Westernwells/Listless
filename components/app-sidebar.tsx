@@ -1,7 +1,7 @@
 "use client"
 
-import type * as React from "react"
-import { Calendar, CheckCircle, Clock, Inbox, PauseCircle, Trash2, Search, BookCheck } from "lucide-react"
+import { useMemo } from "react"
+import { Calendar, CheckCircle, Clock, Inbox, PauseCircle, Trash2, Search } from "lucide-react"
 
 import { NavMain } from "./nav-main"
 import { NavProjects } from "./nav-projects"
@@ -9,14 +9,10 @@ import { NavUser } from "./nav-user"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail } from "@/components/ui/sidebar"
 import { WeeklySection } from "./weekly-section"
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/lib/auth/context"
 
 // This is sample data.
-const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
-  },
+const staticData = {
   navMain: [
     {
       title: "Inbox",
@@ -43,11 +39,6 @@ const data = {
       title: "Completed",
       url: "#",
       icon: CheckCircle,
-    },
-    {
-      title: "Logbook",
-      url: "#",
-      icon: BookCheck,
     },
   ],
   weeklySection: {
@@ -120,6 +111,28 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 }
 
 export function AppSidebar({ onSearchClick, ...props }: AppSidebarProps) {
+  const { user, userProfile, loading } = useAuth()
+
+  // Create user data object for NavUser component
+  const userData = useMemo(() => {
+    if (!user) {
+      return {
+        name: "Guest",
+        email: "guest@example.com",
+        avatar: "/placeholder.svg",
+      }
+    }
+
+    const displayName = userProfile?.name || user.user_metadata?.name || user.email?.split('@')[0] || 'User'
+    const avatarUrl = userProfile?.avatar_url || user.user_metadata?.avatar_url || "/placeholder.svg"
+
+    return {
+      name: displayName,
+      email: user.email || "",
+      avatar: avatarUrl,
+    }
+  }, [user, userProfile])
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -133,25 +146,35 @@ export function AppSidebar({ onSearchClick, ...props }: AppSidebarProps) {
       </SidebarHeader>
       <SidebarContent className="flex flex-col h-full bg-[#fafafa]">
         <div className="flex-grow space-y-2">
-          <NavMain items={data.navMain} />
+          <NavMain items={staticData.navMain} />
           <div className="h-2" aria-hidden="true" /> {/* Separator */}
           {/* Single "This Week" section with collapsible behavior */}
           <div className="compact-list-tabs">
-            <WeeklySection weeklySection={data.weeklySection} />
+            <WeeklySection weeklySection={staticData.weeklySection} />
           </div>
           <div className="h-2" aria-hidden="true" /> {/* Separator */}
           <div className="compact-list-tabs">
-            <NavProjects projects={data.projects} />
+            <NavProjects projects={staticData.projects} />
           </div>
         </div>
 
         {/* Footer navigation fixed at the bottom */}
         <div className="mt-auto pt-2">
-          <NavMain items={data.footerNav} />
+          <NavMain items={staticData.footerNav} />
         </div>
       </SidebarContent>
       <SidebarFooter className="bg-[#fafafa]">
-        <NavUser user={data.user} />
+        {loading ? (
+          <div className="flex items-center space-x-2 p-2">
+            <div className="h-8 w-8 rounded-lg bg-gray-200 animate-pulse" />
+            <div className="flex-1">
+              <div className="h-4 w-20 bg-gray-200 rounded animate-pulse mb-1" />
+              <div className="h-3 w-32 bg-gray-200 rounded animate-pulse" />
+            </div>
+          </div>
+        ) : (
+          <NavUser user={userData} />
+        )}
       </SidebarFooter>
       <SidebarRail />
       <style jsx global>{`

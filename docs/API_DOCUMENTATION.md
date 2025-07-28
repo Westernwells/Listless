@@ -9,6 +9,7 @@ The API provides comprehensive task management functionality including:
 - Task duplication and conversion to projects
 - Trash management (soft delete/restore)
 - Permanent deletion
+- Drag-and-drop reordering with cross-container moves
 - AI-powered embedding generation for auto-tagging
 - Action history tracking for undo/redo functionality
 
@@ -306,6 +307,47 @@ Permanently deletes trashed tasks.
   "message": "5 task(s) permanently deleted"
 }
 ```
+
+### 12. Reorder Items
+
+**PUT** `/reorder`
+
+Handles batch reordering operations for tasks, project lists, and areas with support for cross-container moves.
+
+**Request Body:**
+```json
+{
+  "type": "tasks|project_lists|areas",
+  "moves": [
+    {
+      "id": "item-uuid",
+      "sort_order": 0,
+      "parent_id": "parent-uuid" // or null
+    }
+  ]
+}
+```
+
+**Response (200):**
+```json
+{
+  "data": {
+    "type": "tasks",
+    "affectedIds": ["item-uuid-1", "item-uuid-2"],
+    "moveCount": 2
+  },
+  "message": "Successfully reordered 2 tasks"
+}
+```
+
+**Features:**
+- Batch operations (1-100 items per request)
+- Cross-container moves (e.g., tasks between projects)
+- Database transactions for consistency
+- Action history recording for undo/redo
+- Comprehensive validation
+
+See [REORDER_API.md](./REORDER_API.md) for detailed documentation.
 
 ## Error Responses
 

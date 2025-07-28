@@ -35,67 +35,116 @@ export class TaskDatabase {
   private supabase = createClient()
 
   async getTasks(projectListId?: string, includeCompleted = false) {
-    let query = this.supabase
-      .from('tasks')
-      .select(`
-        *,
-        project_lists (
-          id,
-          name,
-          color
-        ),
-        task_tags (
-          tags (
+    try {
+      let query = this.supabase
+        .from('tasks')
+        .select(`
+          *,
+          project_lists (
             id,
             name,
             color
           ),
-          is_ai_suggested,
-          confidence_score
-        )
-      `)
-      .eq('is_deleted', false)
-      .order('sort_order', { ascending: true })
+          task_tags (
+            tags (
+              id,
+              name,
+              color
+            ),
+            is_ai_suggested,
+            confidence_score
+          )
+        `)
+        .eq('is_deleted', false)
+        .order('sort_order', { ascending: true })
 
-    if (projectListId) {
-      query = query.eq('project_list_id', projectListId)
+      if (projectListId) {
+        query = query.eq('project_list_id', projectListId)
+      }
+
+      if (!includeCompleted) {
+        query = query.eq('completed', false)
+      }
+
+      const result = await query
+
+      if (result.error) {
+        console.error('Database error in getTasks:', result.error)
+        throw handleDatabaseError(result.error)
+      }
+
+      return result
+    } catch (error) {
+      console.error('Error in getTasks:', error)
+      throw error
     }
-
-    if (!includeCompleted) {
-      query = query.eq('completed', false)
-    }
-
-    return query
   }
 
   async createTask(task: TaskInsert) {
-    return this.supabase
-      .from('tasks')
-      .insert(task)
-      .select()
-      .single()
+    try {
+      const result = await this.supabase
+        .from('tasks')
+        .insert(task)
+        .select()
+        .single()
+
+      if (result.error) {
+        console.error('Database error in createTask:', result.error)
+        throw handleDatabaseError(result.error)
+      }
+
+      return result
+    } catch (error) {
+      console.error('Error in createTask:', error)
+      throw error
+    }
   }
 
   async updateTask(id: string, updates: TaskUpdate) {
-    return this.supabase
-      .from('tasks')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single()
+    try {
+      const result = await this.supabase
+        .from('tasks')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single()
+
+      if (result.error) {
+        console.error('Database error in updateTask:', result.error)
+        throw handleDatabaseError(result.error)
+      }
+
+      return result
+    } catch (error) {
+      console.error('Error in updateTask:', error)
+      throw error
+    }
   }
 
   async deleteTask(id: string, permanent = false) {
-    if (permanent) {
-      return this.supabase
-        .from('tasks')
-        .delete()
-        .eq('id', id)
-    } else {
-      return this.supabase
-        .from('tasks')
-        .update({ is_deleted: true })
-        .eq('id', id)
+    try {
+      let result
+      if (permanent) {
+        result = await this.supabase
+          .from('tasks')
+          .delete()
+          .eq('id', id)
+      } else {
+        result = await this.supabase
+          .from('tasks')
+          .update({ is_deleted: true })
+          .eq('id', id)
+      }
+
+      if (result.error) {
+        console.error('Database error in deleteTask:', result.error)
+        throw handleDatabaseError(result.error)
+      }
+
+      return result
+    } catch (error) {
+      console.error('Error in deleteTask:', error)
+      throw error
     }
   }
 
@@ -149,21 +198,33 @@ export class ProjectDatabase {
   private supabase = createClient()
 
   async getAreas() {
-    return this.supabase
-      .from('areas')
-      .select(`
-        *,
-        project_lists (
-          id,
-          name,
-          description,
-          color,
-          sort_order,
-          is_archived
-        )
-      `)
-      .eq('is_archived', false)
-      .order('sort_order', { ascending: true })
+    try {
+      const result = await this.supabase
+        .from('areas')
+        .select(`
+          *,
+          project_lists (
+            id,
+            name,
+            description,
+            color,
+            sort_order,
+            is_archived
+          )
+        `)
+        .eq('is_archived', false)
+        .order('sort_order', { ascending: true })
+
+      if (result.error) {
+        console.error('Database error in getAreas:', result.error)
+        throw handleDatabaseError(result.error)
+      }
+
+      return result
+    } catch (error) {
+      console.error('Error in getAreas:', error)
+      throw error
+    }
   }
 
   async getProjectLists(areaId?: string) {
@@ -354,18 +415,36 @@ export const userDb = new UserDatabase()
  */
 export function handleDatabaseError(error: any) {
   console.error('Database error:', error)
-  
-  if (error?.code === 'PGRST301') {
-    throw new Error('You do not have permission to perform this action')
+
+  // Handle RLS policy violations (403 Forbidden)
+  if (error?.code === 'PGRST301' || error?.status === 403) {
+    throw new Error('You do not have permission to perform this action. Please check your authentication status.')
   }
-  
+
+  // Handle authentication errors
+  if (error?.code === 'PGRST001' || error?.status === 401) {
+    throw new Error('Authentication required. Please log in and try again.')
+  }
+
+  // Handle unique constraint violations
   if (error?.code === '23505') {
     throw new Error('This item already exists')
   }
-  
+
+  // Handle foreign key constraint violations
   if (error?.code === '23503') {
     throw new Error('Cannot delete this item because it is referenced by other items')
   }
-  
+
+  // Handle network/connection errors
+  if (error?.name === 'NetworkError' || error?.code === 'NETWORK_ERROR') {
+    throw new Error('Network error. Please check your connection and try again.')
+  }
+
+  // Handle timeout errors
+  if (error?.name === 'TimeoutError' || error?.code === 'TIMEOUT') {
+    throw new Error('Request timed out. Please try again.')
+  }
+
   throw new Error(error?.message || 'An unexpected database error occurred')
 }

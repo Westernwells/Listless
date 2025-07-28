@@ -40,6 +40,13 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Handle API routes differently - return JSON errors instead of redirects
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    // For API routes, we don't redirect - the API handlers will handle authentication
+    // and return appropriate JSON responses
+    return supabaseResponse
+  }
+
   // Protect authenticated routes
   if (request.nextUrl.pathname.startsWith('/dashboard') && !user) {
     // Redirect to login page if user is not authenticated

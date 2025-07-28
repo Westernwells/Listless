@@ -23,6 +23,9 @@ function SignUpPage() {
   const searchParams = useSearchParams()
 
   useEffect(() => {
+    // Set page title
+    document.title = 'Sign up - AI Task Management'
+
     const errorParam = searchParams.get('error')
     if (errorParam) {
       setError(decodeURIComponent(errorParam))
@@ -30,10 +33,11 @@ function SignUpPage() {
   }, [searchParams])
 
   const passwordRequirements = [
-    { label: 'At least 8 characters', met: password.length >= 8 },
-    { label: 'Contains uppercase letter', met: /[A-Z]/.test(password) },
-    { label: 'Contains lowercase letter', met: /[a-z]/.test(password) },
-    { label: 'Contains number', met: /\d/.test(password) },
+    { label: 'At least 8 characters', met: password.length >= 8, testId: 'password-requirement-length' },
+    { label: 'Contains uppercase letter', met: /[A-Z]/.test(password), testId: 'password-requirement-uppercase' },
+    { label: 'Contains lowercase letter', met: /[a-z]/.test(password), testId: 'password-requirement-lowercase' },
+    { label: 'Contains number', met: /\d/.test(password), testId: 'password-requirement-number' },
+    { label: 'Contains special character', met: /[!@#$%^&*(),.?":{}|<>]/.test(password), testId: 'password-requirement-special' },
   ]
 
   const passwordsMatch = password === confirmPassword && password.length > 0
@@ -156,6 +160,7 @@ function SignUpPage() {
                     {passwordRequirements.map((req, index) => (
                       <div
                         key={index}
+                        data-testid={req.testId}
                         className={`flex items-center space-x-2 ${
                           req.met ? 'text-green-600' : 'text-gray-500'
                         }`}

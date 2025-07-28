@@ -88,36 +88,46 @@ export function AuthProvider({
 
   const signOut = async () => {
     try {
-      setLoading(true)
+      // Don't set loading during logout to avoid UI flicker
       const { error } = await supabase.auth.signOut()
-      
+
       if (error) {
         console.error('Error signing out:', error)
         throw error
       }
 
+      // Clear auth state immediately
       setUser(null)
       setUserProfile(null)
       setSession(null)
     } catch (error) {
-      console.error('Error signing out:', error)
+      console.error('Error in signOut:', error)
       throw error
-    } finally {
-      setLoading(false)
     }
   }
 
   useEffect(() => {
     // Get initial session if not provided
-    if (!initialSession && !initialUser) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        setSession(session)
-        setUser(session?.user ?? null)
-        
-        if (session?.user) {
-          fetchUserProfile(session.user.id).then(setUserProfile)
+    if (!initialUser) {
+      // Use getUser() instead of getSession() for secure authentication
+      supabase.auth.getUser().then(({ data: { user }, error }) => {
+        if (error) {
+          console.error('Error getting user:', error)
+          setSession(null)
+          setUser(null)
+          setUserProfile(null)
+          setLoading(false)
+          return
         }
-        
+
+        setUser(user)
+        // We don't set session here since we're using getUser()
+        setSession(null)
+
+        if (user) {
+          fetchUserProfile(user.id).then(setUserProfile)
+        }
+
         setLoading(false)
       })
     } else if (initialUser) {

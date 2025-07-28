@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 
 import { ChevronsUpDown, LogOut, Sparkles, Settings, Printer, Upload, Download } from "lucide-react"
@@ -14,6 +15,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar"
+import { Icons } from "@/components/ui/icons"
+import { useAuth } from "@/lib/auth/context"
 import Link from "next/link"
 
 export function NavUser({
@@ -26,6 +29,23 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const { signOut } = useAuth()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true)
+
+      // Clear auth state first
+      await signOut()
+
+      // Force immediate redirect after successful logout
+      window.location.replace('/auth/login')
+    } catch (error) {
+      console.error('Error signing out:', error)
+      setIsLoggingOut(false)
+    }
+  }
 
   const handlePrint = () => {
     window.print()
@@ -135,9 +155,17 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Log out</span>
+            <DropdownMenuItem
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="cursor-pointer"
+            >
+              {isLoggingOut ? (
+                <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <LogOut className="mr-2 h-4 w-4" />
+              )}
+              <span>{isLoggingOut ? 'Signing out...' : 'Log out'}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="px-2 py-1.5 text-xs text-muted-foreground">

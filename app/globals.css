@@ -324,6 +324,7 @@
   [data-state="checked"] {
     background-color: #4a1d96 !important; /* Dark purple */
     border-color: #4a1d96 !important;
+    border-radius: 2px !important; /* Preserve rounded corners */
   }
 
   /* Drag and drop styles */

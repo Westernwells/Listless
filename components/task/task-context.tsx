@@ -120,8 +120,8 @@ const sampleTasks = {
       tags: ["Research", "Area 1"],
     },
   ],
-  // Add new lists for logbook and trash
-  logbook: [
+  // Add completed tasks to the completed list instead
+  completed: [
     {
       id: "task-16",
       content: "Completed task 1",
@@ -241,7 +241,7 @@ export interface Area {
 }
 
 type TaskListId = string
-type ViewType = "list" | "scheduled" | "logbook" | "trash"
+type ViewType = "list" | "scheduled" | "trash"
 
 type TaskContextType = {
   activeListId: TaskListId | null
@@ -293,7 +293,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       scheduled: "Scheduled",
       deferred: "Deferred",
       completed: "Completed",
-      logbook: "Logbook",
       trash: "Trash",
     }
 
@@ -321,26 +320,51 @@ export function TaskProvider({ children }: { children: ReactNode }) {
 
   // Toggle task completion
   const toggleTask = (id: string) => {
-    const updatedTasks = { ...tasks }
+    setTasks(currentTasks => {
+      const newTasks = JSON.parse(JSON.stringify(currentTasks));
+      let taskToMove: Task | null = null;
+      let sourceListId: string | null = null;
 
-    // Find which list contains the task
-    for (const listId in updatedTasks) {
-      const listTasks = updatedTasks[listId as keyof typeof updatedTasks]
-      const taskIndex = listTasks.findIndex((task) => task.id === id)
-
-      if (taskIndex !== -1) {
-        // Toggle the checked status
-        listTasks[taskIndex] = {
-          ...listTasks[taskIndex],
-          checked: !listTasks[taskIndex].checked,
-          completedAt: !listTasks[taskIndex].checked ? new Date().toISOString() : undefined,
+      // Find the task and its source list
+      for (const listId in newTasks) {
+        // Ensure we are checking a valid list, which should be an array
+        if (Array.isArray(newTasks[listId])) {
+          const taskIndex = newTasks[listId].findIndex((task: Task) => task.id === id);
+          if (taskIndex !== -1) {
+            sourceListId = listId;
+            taskToMove = newTasks[listId].splice(taskIndex, 1)[0];
+            break;
+          }
         }
-        break
       }
-    }
 
-    setTasks(updatedTasks)
-  }
+      if (taskToMove && sourceListId) {
+        // If task is being marked as complete
+        if (!taskToMove.checked) {
+          taskToMove.checked = true;
+          taskToMove.completedAt = new Date().toISOString();
+
+          // Use the 'logbook' list as the destination for completed tasks.
+          // This matches the LogbookView component.
+          if (!newTasks.logbook) {
+            newTasks.logbook = [];
+          }
+          newTasks.logbook.push(taskToMove);
+        } else {
+          // If task is being marked as incomplete
+          taskToMove.checked = false;
+          taskToMove.completedAt = undefined;
+          // Move it back to the 'inbox' list
+          if (!newTasks.inbox) {
+            newTasks.inbox = [];
+          }
+          newTasks.inbox.push(taskToMove);
+        }
+      }
+
+      return newTasks;
+    });
+  };
 
   // Add a new task
   const addTask = (listId: string, taskData: Partial<Task>) => {
@@ -685,9 +709,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     setActiveListId(id)
 
     // Set view type based on list ID
-    if (id === "logbook") {
-      setCurrentView("logbook")
-    } else if (id === "trash") {
+    if (id === "trash") {
       setCurrentView("trash")
     } else if (id === "scheduled") {
       setCurrentView("scheduled")
