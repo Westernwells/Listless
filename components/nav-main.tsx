@@ -16,6 +16,43 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
+import {
+  useInboxTaskCount,
+  useTodayTaskCount,
+  useScheduledTaskCount,
+  useDeferredTaskCount,
+  useCompletedTaskCount,
+  useTrashTaskCount,
+} from "@/hooks/use-task-counts"
+
+/**
+ * Hook to get the appropriate task count for a given view
+ */
+function useViewTaskCount(viewTitle: string) {
+  const inboxCount = useInboxTaskCount()
+  const todayCount = useTodayTaskCount()
+  const scheduledCount = useScheduledTaskCount()
+  const deferredCount = useDeferredTaskCount()
+  const completedCount = useCompletedTaskCount()
+  const trashCount = useTrashTaskCount()
+
+  switch (viewTitle.toLowerCase()) {
+    case 'inbox':
+      return inboxCount
+    case 'today':
+      return todayCount
+    case 'scheduled':
+      return scheduledCount
+    case 'deferred':
+      return deferredCount
+    case 'completed':
+      return completedCount
+    case 'trash':
+      return trashCount
+    default:
+      return { data: 0, isLoading: false, error: null }
+  }
+}
 
 export function NavMain({
   items = [],
@@ -138,9 +175,17 @@ function NavMenuItem({
     setActiveListId(item.title.toLowerCase())
   }
 
-  // Calculate incomplete task count for this list
+  // Get dynamic task count for this view
+  const countQuery = useViewTaskCount(item.title)
+  const { data: dynamicCount = 0, isLoading: countLoading, error: countError } = countQuery
+
+  // Fallback to static count for non-main views or when dynamic count fails
   const tasks = getTasksForList(item.title.toLowerCase())
-  const incompleteCount = tasks.filter((task) => !task.checked).length
+  const staticCount = tasks.filter((task) => !task.checked).length
+
+  // Use dynamic count for main views, fallback to static count for others or on error
+  const isMainView = ['inbox', 'today', 'scheduled', 'deferred', 'completed', 'trash'].includes(item.title.toLowerCase())
+  const incompleteCount = (isMainView && !countError) ? dynamicCount : staticCount
 
   return (
     <SidebarMenuItem
@@ -174,8 +219,14 @@ function NavMenuItem({
           ) : (
             <>
               <span onDoubleClick={(e) => onDoubleClick(e, item.title)}>{item.title}</span>
-              {incompleteCount > 0 && (
-                <span className="ml-auto text-xs text-muted-foreground font-medium">{incompleteCount}</span>
+              {(incompleteCount > 0 || (isMainView && countLoading)) && (
+                <span className="ml-auto text-xs text-muted-foreground font-medium">
+                  {isMainView && countLoading ? (
+                    <span className="animate-pulse">•</span>
+                  ) : (
+                    incompleteCount
+                  )}
+                </span>
               )}
             </>
           )}

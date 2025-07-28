@@ -16,6 +16,7 @@ export const CreateTaskSchema = z.object({
   due_date: z.string().datetime().optional(),
   project_list_id: z.string().uuid().optional(),
   sort_order: z.number().int().min(0).default(0),
+  is_deferred: z.boolean().default(false),
 })
 
 // Task update schema (partial updates allowed)
@@ -55,7 +56,7 @@ export const TaskQuerySchema = z.object({
   project_list_id: z.string().optional(), // Allow any string for backward compatibility with frontend IDs
   include_completed: z.string().transform(val => val === 'true').optional(),
   include_deleted: z.string().transform(val => val === 'true').optional(),
-  view: z.enum(['inbox', 'today', 'deferred', 'completed', 'project']).optional(),
+  view: z.enum(['inbox', 'today', 'scheduled', 'deferred', 'completed', 'project']).optional(),
   due_date: z.string().datetime().optional(),
   is_deferred: z.string().transform(val => val === 'true').optional(),
   limit: z.string().transform(val => parseInt(val, 10)).pipe(z.number().int().min(1).max(100)).optional(),

@@ -151,6 +151,28 @@ export function TaskItem({
     }
   }, [isExpanded, onExpand])
 
+  // Handle content click for editing in expanded view only
+  const handleContentClick = useCallback((e: React.MouseEvent) => {
+    // Only handle clicks when task is already expanded
+    if (isExpanded) {
+      // Prevent event propagation to avoid triggering selection
+      e.stopPropagation()
+
+      // Only allow editing in expanded view
+      setLocalIsEditing(true)
+      // Use requestAnimationFrame for better performance
+      requestAnimationFrame(() => {
+        if (inputRef.current) {
+          inputRef.current.focus()
+          // Position cursor at the end without selecting text
+          const length = inputRef.current.value.length
+          inputRef.current.setSelectionRange(length, length)
+        }
+      })
+    }
+    // If not expanded, let the click bubble up to trigger selection
+  }, [isExpanded])
+
   // Determine which tags to display and if we need an ellipsis
   const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS)
   const hasMoreTags = tags.length > MAX_VISIBLE_TAGS
@@ -160,7 +182,7 @@ export function TaskItem({
       <div
         ref={taskRef}
         className={cn(
-          "flex items-center gap-3 px-4 h-[34px] bg-background relative rounded-md transition-colors duration-200 task-item",
+          "flex items-center gap-3 px-4 h-[34px] bg-background relative rounded-md transition-colors duration-200 task-item cursor-default",
           isDragging ? "task-dragging" : "",
           checked ? "opacity-70" : "",
           isSelected ? "task-selected" : "",
@@ -177,6 +199,8 @@ export function TaskItem({
         data-selected={isSelected ? "true" : "false"}
         data-context-menu={isContextMenuOpen ? "open" : "closed"}
         data-expanded={isExpanded ? "true" : "false"}
+        data-task-id={id}
+        data-testid="task-item"
       >
         {/* Checkbox - no static drag handle */}
         <div onClick={(e) => e.stopPropagation()}>
@@ -185,7 +209,7 @@ export function TaskItem({
             checked={checked}
             onCheckedChange={onToggle}
             aria-label={checked ? `Mark ${content} as incomplete` : `Mark ${content} as complete`}
-            className={cn("h-3.5 w-3.5 rounded-[2px] border-[#D5D6D9]", isExpanded ? "expanded-checkbox" : "")}
+            className={cn("border-[#D5D6D9]", isExpanded ? "expanded-checkbox" : "")}
           />
         </div>
 
@@ -206,35 +230,15 @@ export function TaskItem({
           />
         ) : (
           <div
-            onClick={useCallback((e: React.MouseEvent) => {
-              // Prevent event propagation to avoid triggering selection
-              e.stopPropagation()
-
-              // Only expand the task on click, don't enter edit mode in inline view
-              if (!isExpanded) {
-                onExpand()
-              } else {
-                // Only allow editing in expanded view
-                setLocalIsEditing(true)
-                // Use requestAnimationFrame for better performance
-                requestAnimationFrame(() => {
-                  if (inputRef.current) {
-                    inputRef.current.focus()
-                    // Position cursor at the end without selecting text
-                    const length = inputRef.current.value.length
-                    inputRef.current.setSelectionRange(length, length)
-                  }
-                })
-              }
-            }, [isExpanded, onExpand])}
+            onClick={handleContentClick}
             className={cn(
-              "flex-1 cursor-pointer text-[14px] font-normal text-[#0F172A] truncate",
+              "flex-1 text-[14px] font-normal text-[#0F172A] truncate",
               checked && "line-through text-muted-foreground",
-              isExpanded ? "expanded-title" : "",
-              isExpanded ? "cursor-text" : "cursor-pointer",
+              isExpanded ? "expanded-title cursor-text" : "cursor-default",
             )}
             style={{ fontFamily: "Inter, sans-serif" }}
             title={content} // Show full content on hover
+            data-testid="task-title"
           >
             {content}
           </div>

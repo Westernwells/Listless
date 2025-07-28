@@ -344,8 +344,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
           taskToMove.checked = true;
           taskToMove.completedAt = new Date().toISOString();
 
-          // Use the 'logbook' list as the destination for completed tasks.
-          // This matches the LogbookView component.
+          // Move completed tasks to a temporary logbook list for local state management
           if (!newTasks.logbook) {
             newTasks.logbook = [];
           }

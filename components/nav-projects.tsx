@@ -29,6 +29,7 @@ import {
 import { useDroppable } from "@dnd-kit/core"
 import { useDragContext } from "./task/drag-context"
 import { cn } from "@/lib/utils"
+import { useProjectTaskCount } from "@/hooks/use-task-counts"
 
 export function NavProjects() {
   const { isMobile } = useSidebar()
@@ -454,9 +455,19 @@ function ListItem({
   // Determine if this item should show drop indicator
   const showDropIndicator = isDraggingTask && isOver
 
-  // Calculate incomplete task count for this project
+  // Get dynamic task count for this project
+  const { data: dynamicCount = 0, isLoading: countLoading, error: countError } = useProjectTaskCount(listId)
+
+  // Fallback to static count when dynamic count fails or for non-UUID project IDs
   const tasks = getTasksForList(listId)
-  const incompleteCount = tasks.filter((task) => !task.checked).length
+  const staticCount = tasks.filter((task) => !task.checked).length
+
+  // Check if this is a real database project (UUID format) vs mock data
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  const isRealProject = uuidRegex.test(listId)
+
+  // Use dynamic count for real projects, fallback to static count for mock data or on error
+  const incompleteCount = (isRealProject && !countError) ? dynamicCount : staticCount
 
   const handleItemClick = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -527,8 +538,14 @@ function ListItem({
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          incompleteCount > 0 && (
-            <span className="text-xs text-muted-foreground font-medium tabular-nums">{incompleteCount}</span>
+          (incompleteCount > 0 || (isRealProject && countLoading)) && (
+            <span className="text-xs text-muted-foreground font-medium tabular-nums">
+              {isRealProject && countLoading ? (
+                <span className="animate-pulse">•</span>
+              ) : (
+                incompleteCount
+              )}
+            </span>
           )
         )}
       </div>

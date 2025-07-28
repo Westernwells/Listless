@@ -44,6 +44,7 @@ export const PUT = withErrorHandling(async (request: NextRequest) => {
     let body: any
     try {
       body = await request.json()
+      console.log("Reorder API received body:", JSON.stringify(body, null, 2))
     } catch (parseError) {
       return createErrorResponse(
         'Invalid JSON in request body',
@@ -69,16 +70,11 @@ export const PUT = withErrorHandling(async (request: NextRequest) => {
     const { type, moves } = validationResult.data
 
     // Get authenticated user with better error handling
-    let user: any
-    try {
-      user = await getAuthenticatedUser()
-    } catch (authError) {
-      return createErrorResponse(
-        'Authentication failed',
-        HTTP_STATUS.UNAUTHORIZED,
-        { details: 'Please log in to perform this action' }
-      )
+    const authResult = await getAuthenticatedUser()
+    if (!authResult.success) {
+      return authResult.error
     }
+    const { user } = authResult
 
     // Fetch existing data for validation and action history
     const supabase = await createClient()
