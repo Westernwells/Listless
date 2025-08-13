@@ -22,7 +22,7 @@ export function SortableTaskItem(props: SortableTaskItemProps) {
   // Set client-side flag to prevent hydration issues
   useEffect(() => {
     setIsClient(true)
-    console.log(`🎯 SortableTaskItem mounted for task: ${props.id}`)
+    // console.debug(`SortableTaskItem mounted`, { id: props.id })
   }, [])
 
   // Determine if this task is part of a multi-drag operation
@@ -66,12 +66,7 @@ export function SortableTaskItem(props: SortableTaskItemProps) {
   // Debug logging for listeners
   useEffect(() => {
     if (isClient && listeners) {
-      console.log(`🎯 Task ${props.id} listeners:`, {
-        hasListeners: !!listeners,
-        listenerKeys: Object.keys(listeners || {}),
-        hasAttributes: !!attributes,
-        attributeKeys: Object.keys(attributes || {}),
-      })
+      // console.debug(`Task listeners`, { id: props.id, hasListeners: !!listeners, listenerKeys: Object.keys(listeners || {}) })
     }
   }, [isClient, listeners, attributes, props.id])
 
@@ -101,13 +96,7 @@ export function SortableTaskItem(props: SortableTaskItemProps) {
             {...finalAttributes}
             {...finalListeners}
             onMouseDown={(e) => {
-              console.log(`🖱️ MOUSEDOWN on grip handle for task ${props.id}`, {
-                button: e.button,
-                target: e.target,
-                currentTarget: e.currentTarget,
-                hasListeners: !!finalListeners,
-                listenerKeys: Object.keys(finalListeners),
-              })
+              // Intentionally quiet during drag to avoid console overhead
             }}
             aria-label="Drag to reorder"
             suppressHydrationWarning

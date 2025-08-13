@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useMemo, type ReactNode } from "react"
 import dynamic from "next/dynamic"
 import {
   DndContext,
@@ -20,8 +20,6 @@ import {
 } from "@dnd-kit/core"
 import {
   sortableKeyboardCoordinates,
-  SortableContext,
-  verticalListSortingStrategy,
   arrayMove,
 } from "@dnd-kit/sortable"
 import { useTaskContext } from "./task-context"
@@ -57,21 +55,20 @@ export function useDragContext() {
 
 // Monitor component to catch all drag events
 function DragMonitor() {
+  // Keep monitor lightweight; avoid per-frame work/logging
   useDndMonitor({
     onDragStart(event) {
-      console.log("🔍 MONITOR: onDragStart", event)
+      // console.debug("MONITOR: onDragStart", { id: event.active?.id })
     },
-    onDragMove(event) {
-      console.log("🔍 MONITOR: onDragMove", event)
-    },
+    // Intentionally omit onDragMove to reduce main-thread pressure
     onDragOver(event) {
-      console.log("🔍 MONITOR: onDragOver", event)
+      // console.debug("MONITOR: onDragOver", { over: event.over?.id })
     },
     onDragEnd(event) {
-      console.log("🔍 MONITOR: onDragEnd", event)
+      // console.debug("MONITOR: onDragEnd", { id: event.active?.id, over: event.over?.id })
     },
-    onDragCancel(event) {
-      console.log("🔍 MONITOR: onDragCancel - DRAG WAS CANCELLED!", event)
+    onDragCancel() {
+      // console.debug("MONITOR: onDragCancel")
     },
   })
   return null
@@ -84,7 +81,7 @@ export function DragContextProvider({ children }: { children: ReactNode }) {
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
   const [selectedTaskIds, setSelectedTaskIdsInternal] = useState<Set<string>>(new Set())
   const [activeDroppableId, setActiveDroppableId] = useState<string | null>(null)
-  const [droppableAreas, setDroppableAreas] = useState<Record<string, boolean>>({})
+  // Removed droppableAreas to avoid frequent object churn; rely on activeDroppableId
   const [isMultiDragging, setIsMultiDragging] = useState(false)
   const [isClient, setIsClient] = useState(false)
   const [dragType, setDragType] = useState<'sorting' | 'cross-list' | null>(null)
@@ -164,20 +161,17 @@ export function DragContextProvider({ children }: { children: ReactNode }) {
   const handleDragOver = (event: DragOverEvent) => {
     const { over } = event
 
-    // Check if we're over a droppable sidebar item
+    // Only update when value actually changes to avoid re-renders each frame
     if (over && typeof over.id === "string" && over.id.startsWith("sidebar-")) {
       const targetId = over.id.replace("sidebar-", "")
-      setActiveDroppableId(targetId)
 
-      // Update droppable areas state for visual feedback
-      setDroppableAreas((prev) => ({
-        ...prev,
-        [over.id]: true,
-      }))
+      // Update active droppable only when it changes
+      setActiveDroppableId(prev => (prev !== targetId ? targetId : prev))
 
-      console.log("Dragging over:", over.id)
+      // No droppableAreas map; visual feedback should use isOver from useDroppable locally
     } else {
-      setActiveDroppableId(null)
+      // Clear only if previously set
+      setActiveDroppableId(prev => (prev !== null ? null : prev))
     }
   }
 
@@ -201,7 +195,7 @@ export function DragContextProvider({ children }: { children: ReactNode }) {
     console.log("🔄 Resetting drag state...")
     setActiveTaskId(null)
     setActiveDroppableId(null)
-    setDroppableAreas({})
+    // droppableAreas removed
     setIsMultiDragging(false)
     setDragType(null)
 
@@ -281,7 +275,8 @@ export function DragContextProvider({ children }: { children: ReactNode }) {
   // Helper function to check if dragging over a specific area
   const isDraggingOver = (id: string): boolean => {
     const fullId = id.startsWith("sidebar-") ? id : `sidebar-${id}`
-    return !!droppableAreas[fullId]
+    // Consider "over" when activeDroppableId matches the target id
+    return activeDroppableId === fullId.replace("sidebar-", "")
   }
 
   // Custom drop animation to maintain consistent size
@@ -295,61 +290,44 @@ export function DragContextProvider({ children }: { children: ReactNode }) {
     }),
   }
 
-  // Don't render DndContext on server to prevent hydration issues
-  if (!isClient) {
-    return (
-      <DragContext.Provider
-        value={{
-          activeTaskId: null,
-          selectedTaskIds: new Set(),
-          isDraggingTask: false,
-          activeDroppableId: null,
-          isDraggingOver: () => false,
-          setSelectedTaskIds: () => {},
-          isMultiDragging: false,
-          dragType: null,
-          sortableItems: [],
-        }}
-      >
-        {children}
-      </DragContext.Provider>
-    )
-  }
+  // Always call hooks in the same order. Avoid early returns that skip hooks.
+  const contextValue = useMemo(() => ({
+    activeTaskId,
+    selectedTaskIds,
+    isDraggingTask: activeTaskId !== null,
+    activeDroppableId,
+    isDraggingOver,
+    setSelectedTaskIds,
+    isMultiDragging,
+    dragType,
+    sortableItems,
+  }), [activeTaskId, selectedTaskIds, activeDroppableId, isMultiDragging, dragType, sortableItems])
 
   return (
-    <DragContext.Provider
-      value={{
-        activeTaskId,
-        selectedTaskIds,
-        isDraggingTask: activeTaskId !== null,
-        activeDroppableId,
-        isDraggingOver,
-        setSelectedTaskIds,
-        isMultiDragging,
-        dragType,
-        sortableItems,
-      }}
-    >
-      <DndContext
-        sensors={sensors}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-        collisionDetection={closestCenter}
-        measuring={{
-          droppable: {
-            strategy: MeasuringStrategy.Always, // Always measure to improve accuracy
-          },
-        }}
-        modifiers={[]} // Remove any modifiers that might cause lag
-        // @ts-ignore - Type issue with dropAnimation
-        dropAnimation={dropAnimation}
-      >
-        <DragMonitor />
-        <SortableContext items={sortableItems} strategy={verticalListSortingStrategy}>
+    <DragContext.Provider value={contextValue}>
+      {isClient ? (
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          collisionDetection={closestCenter}
+          measuring={{
+            droppable: {
+              // Measure only during active drag to reduce overhead
+              strategy: MeasuringStrategy.WhileDragging,
+            },
+          }}
+          modifiers={[]}
+          // @ts-ignore - Type issue with dropAnimation
+          dropAnimation={dropAnimation}
+        >
+          <DragMonitor />
           {children}
-        </SortableContext>
-      </DndContext>
+        </DndContext>
+      ) : (
+        children
+      )}
     </DragContext.Provider>
   )
 }

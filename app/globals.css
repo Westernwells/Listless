@@ -326,6 +326,17 @@
   }
 
   /* Ensure the selection doesn't extend to the edges */
+  /* Ensure AI wand icon is fully visible with gradient */
+  .ai-wand {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+  .ai-wand path {
+    opacity: 1 !important;
+    visibility: visible !important;
+    stroke-width: 2 !important;
+  }
+
   [data-selected="true"] {
     background-color: transparent;
   }

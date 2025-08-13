@@ -11,6 +11,7 @@ import {
 import { createPortal } from "react-dom"
 import { TaskItem } from "./task-item"
 import { SortableTaskItem } from "./sortable-task-item"
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import {
   Plus,
   Calendar,
@@ -28,8 +29,10 @@ import {
   Redo2,
   CircleCheckBig,
   CirclePause,
+  WandSparkles,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import AiSparklesIcon from "@/components/ui/ai-sparkles-icon"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -557,30 +560,63 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
       )}
 
       {showHeader && (
-        <div className="flex items-center justify-between px-12 pt-12 pb-6">
-          <div>
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              {title === "Inbox" && <Inbox className="h-5 w-5 text-muted-foreground" />}
-              {title === "Today" && <Calendar className="h-5 w-5 text-muted-foreground" />}
-              {title === "Deferred" && <CirclePause className="h-5 w-5 text-muted-foreground" />}
-              {title === "Completed" && <CircleCheckBig className="h-5 w-5 text-muted-foreground" />}
-              {title}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {tasks.filter((task) => !task.checked).length} tasks remaining
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            {selectedTaskIds.size > 0 && (
-              <div className="text-sm text-muted-foreground">
-                {selectedTaskIds.size} task{selectedTaskIds.size !== 1 ? "s" : ""} selected
+        <div className="px-12 pt-12 pb-6">
+          <div className="grid grid-cols-3 items-center">
+            {/* Left: Title and count */}
+            <div className="justify-self-start">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                {title === "Inbox" && <Inbox className="h-5 w-5 text-muted-foreground" />}
+                {title === "Today" && <Calendar className="h-5 w-5 text-muted-foreground" />}
+                {title === "Deferred" && <CirclePause className="h-5 w-5 text-muted-foreground" />}
+                {title === "Completed" && <CircleCheckBig className="h-5 w-5 text-muted-foreground" />}
+                {title}
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {tasks.filter((task) => !task.checked).length} tasks remaining
+              </p>
+            </div>
+
+            {/* Center: AI feature buttons (Inbox only) */}
+            <div className="justify-self-center">
+              {view === 'inbox' && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-transparent text-foreground/80 hover:text-foreground hover:bg-primary/15 hover:border-[#E1D0FD] h-7 px-2.5 border-gray-300 text-xs gap-0 group"
+                    aria-label="AI Tag task suggestions"
+                    title="Tag Tasks"
+                  >
+                    <AiSparklesIcon className="h-3.5 w-3.5 mr-1.5 ai-gradient-on-hover" />
+                    Tag Tasks
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-transparent text-foreground/80 hover:text-foreground hover:bg-primary/15 hover:border-[#E1D0FD] h-7 px-2.5 border-gray-300 text-xs gap-0 group"
+                    aria-label="AI add to lists suggestions"
+                    title="Add To Lists"
+                  >
+                    <AiSparklesIcon className="h-3.5 w-3.5 mr-1.5 ai-gradient-on-hover" />
+                    Add To Lists
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Right: Utilities */}
+            <div className="justify-self-end flex items-center gap-4">
+              {selectedTaskIds.size > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  {selectedTaskIds.size} task{selectedTaskIds.size !== 1 ? "s" : ""} selected
+                </div>
+              )}
+              <div className="flex items-center gap-3">
+                <Search className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
+                <ListFilter className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
+                <Undo2 className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
+                <Redo2 className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
               </div>
-            )}
-            <div className="flex items-center gap-3">
-              <Search className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
-              <ListFilter className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
-              <Undo2 className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
-              <Redo2 className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
             </div>
           </div>
         </div>
@@ -622,7 +658,7 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                className="absolute bottom-6 right-6 bg-black text-white rounded-[6px] hover:bg-black/90 px-4"
+                className="absolute bottom-6 right-6 bg-black text-white rounded-[6px] hover:bg-black/90 h-9 px-3"
                 onClick={handleAddTask}
               >
                 <Plus className="h-4 w-4 mr-1" />
@@ -742,8 +778,9 @@ function TaskListContent({
   return (
     <>
       <div className="w-full">
-          {tasks.map((task) => (
-            <ContextMenu
+          <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+            {tasks.map((task) => (
+              <ContextMenu
               key={task.id}
               onOpenChange={(open) => {
                 if (!open) handleContextMenuClose()
@@ -770,7 +807,8 @@ function TaskListContent({
               </ContextMenuTrigger>
               <TaskContextMenu handleContextMenuAction={handleContextMenuAction} />
             </ContextMenu>
-          ))}
+            ))}
+          </SortableContext>
 
           {/* Bottom drop area that integrates with DnD Kit */}
           <BottomDropArea />
@@ -779,7 +817,7 @@ function TaskListContent({
       {typeof document !== "undefined" &&
         activeId &&
         createPortal(
-          <DragOverlay adjustScale={false} zIndex={1000} dropAnimation={null}>
+          <DragOverlay adjustScale={false} zIndex={1000} dropAnimation={null} style={{ pointerEvents: 'none' }}>
             {/* Match the exact structure of the original task item */}
             <div className="drag-overlay-wrapper">
               <div className="drag-overlay-container">

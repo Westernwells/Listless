@@ -155,6 +155,13 @@ export const ReorderMoveSchema = z.object({
   }).optional().nullable(),
 })
 
+// User profile validation
+export const UpdateUserProfileSchema = z.object({
+  name: z.string().max(200, 'Name too long').optional().nullable(),
+  bio: z.string().max(1000, 'Bio too long').optional().nullable(),
+  avatar_url: z.string().url('Invalid avatar URL').optional().nullable(),
+})
+
 export const ReorderSchema = z.object({
   type: z.enum(['tasks', 'project_lists', 'areas'], {
     errorMap: (issue, ctx) => {

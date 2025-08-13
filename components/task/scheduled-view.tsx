@@ -13,6 +13,8 @@ import { useDragContext } from "./drag-context"
 import { SortableTaskItem } from "./sortable-task-item"
 // Removed DndContext imports - using global drag context instead
 import { useDroppable } from "@dnd-kit/core"
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
+
 import { addDays, isAfter, isSameDay, getMonth, getYear, format } from "date-fns"
 
 interface ScheduledItem {
