@@ -5,8 +5,8 @@ export interface AiSparklesIconProps extends React.SVGProps<SVGSVGElement> {
   className?: string
 }
 
-// Gradient-capable version of Lucide's WandSparkles
-// All paths from original Lucide icon with gradient stroke
+// Flat purple version of Lucide's WandSparkles for better visibility
+// Original gradient colors were: #DD31E9 (start) to #9631F1 (end)
 export function AiSparklesIcon({ className, ...props }: AiSparklesIconProps) {
   return (
     <svg
@@ -15,7 +15,7 @@ export function AiSparklesIcon({ className, ...props }: AiSparklesIconProps) {
       height="24"
       viewBox="0 0 24 24"
       fill="none"
-      stroke="url(#ai-wand-gradient)"
+      stroke="#9631F1"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -23,12 +23,6 @@ export function AiSparklesIcon({ className, ...props }: AiSparklesIconProps) {
       aria-hidden="true"
       {...props}
     >
-      <defs>
-        <linearGradient id="ai-wand-gradient" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#DD31E9" />
-          <stop offset="100%" stopColor="#9631F1" />
-        </linearGradient>
-      </defs>
       {/* Main wand body */}
       <path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72" />
       {/* Wand tip detail */}

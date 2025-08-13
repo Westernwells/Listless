@@ -583,21 +583,21 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
                   <Button
                     variant="outline"
                     size="sm"
-                    className="bg-transparent text-foreground/80 hover:text-foreground hover:bg-primary/15 hover:border-[#E1D0FD] h-7 px-2.5 border-gray-300 text-xs gap-0 group"
+                    className="bg-transparent text-foreground/80 hover:text-foreground hover:!bg-primary/12 hover:border-[#E8DAFF] h-7 px-2.5 border-gray-300 text-xs gap-0 group"
                     aria-label="AI Tag task suggestions"
                     title="Tag Tasks"
                   >
-                    <AiSparklesIcon className="h-3.5 w-3.5 mr-1.5 ai-gradient-on-hover" />
+                    <AiSparklesIcon className="h-4 w-4 mr-1.5 ai-gradient-on-hover" />
                     Tag Tasks
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="bg-transparent text-foreground/80 hover:text-foreground hover:bg-primary/15 hover:border-[#E1D0FD] h-7 px-2.5 border-gray-300 text-xs gap-0 group"
+                    className="bg-transparent text-foreground/80 hover:text-foreground hover:!bg-primary/12 hover:border-[#E8DAFF] h-7 px-2.5 border-gray-300 text-xs gap-0 group"
                     aria-label="AI add to lists suggestions"
                     title="Add To Lists"
                   >
-                    <AiSparklesIcon className="h-3.5 w-3.5 mr-1.5 ai-gradient-on-hover" />
+                    <AiSparklesIcon className="h-4 w-4 mr-1.5 ai-gradient-on-hover" />
                     Add To Lists
                   </Button>
                 </div>

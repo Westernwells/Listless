@@ -337,6 +337,11 @@
     stroke-width: 2 !important;
   }
 
+  /* AI gradient hover effect - currently using flat purple color */
+  .ai-gradient-on-hover {
+    transition: opacity 0.2s ease;
+  }
+
   [data-selected="true"] {
     background-color: transparent;
   }
