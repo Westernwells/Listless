@@ -5,21 +5,13 @@ import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import dynamic from "next/dynamic"
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
   DragOverlay,
   useDroppable,
 } from "@dnd-kit/core"
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { createPortal } from "react-dom"
 import { TaskItem } from "./task-item"
 import { SortableTaskItem } from "./sortable-task-item"
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import {
   Plus,
   Calendar,
@@ -37,8 +29,10 @@ import {
   Redo2,
   CircleCheckBig,
   CirclePause,
+  WandSparkles,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import AiSparklesIcon from "@/components/ui/ai-sparkles-icon"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -56,7 +50,7 @@ import { TaskSharingDialog } from "./task-sharing-dialog"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { format } from "date-fns"
 import { taskService, type FrontendTask } from "@/lib/api/task-service"
-import { useTasks, useInboxTasks, useTodayTasks, useDeferredTasks, useCompletedTasks, useProjectTasks, useCreateTask, useUpdateTask, useToggleTask, useDeleteTask, Task } from "@/hooks/use-tasks"
+import { useTasks, useInboxTasks, useTodayTasks, useDeferredTasks, useCompletedTasks, useProjectTasks, useCreateTask, useUpdateTask, useToggleTask, useDeleteTask, useReorderTasks, Task } from "@/hooks/use-tasks"
 
 interface TaskListProps {
   initialTasks: Task[]
@@ -118,6 +112,7 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
   const createTaskMutation = useCreateTask()
   const updateTaskMutation = useUpdateTask()
   const toggleTaskMutation = useToggleTask()
+  const reorderTasksMutation = useReorderTasks()
   const deleteTaskMutation = useDeleteTask()
 
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -148,6 +143,22 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
     setIsClient(true)
   }, [])
 
+  // Clear selection state when task order changes (e.g., due to rollback after failed reorder)
+  useEffect(() => {
+    if (selectedTaskIds.size > 0 && tasks.length > 0) {
+      // Check if any selected tasks have moved positions unexpectedly
+      // This can happen when TanStack Query rolls back optimistic updates
+      const taskIds = tasks.map(task => task.id)
+      const hasSelectedTasks = Array.from(selectedTaskIds).some(id => taskIds.includes(id))
+
+      if (!hasSelectedTasks) {
+        // Selected tasks no longer exist in current view, clear selection
+        console.log("🎯 Selected tasks no longer in view - clearing selection state")
+        setSelectedTaskIds(new Set())
+      }
+    }
+  }, [tasks, selectedTaskIds, setSelectedTaskIds])
+
   // Measure container width for consistent drag overlay sizing
   useEffect(() => {
     if (containerRef.current) {
@@ -165,18 +176,7 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
     }
   }, [])
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5, // Reduced distance for easier activation
-        tolerance: 5, // Added tolerance
-        delay: 0, // No delay
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  )
+
 
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -232,32 +232,32 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
     }
   }, [closingTaskId])
 
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string)
+  // Helper function to reset hover states on task items only
+  const resetHoverStates = () => {
+    try {
+      // Force a reflow by temporarily disabling and re-enabling pointer events
+      // This helps clear any stuck CSS :hover states - only target task items within task list containers
+      const taskItems = document.querySelectorAll('.task-list-container .task-item, .task-list-container .task-container')
+      taskItems.forEach((element) => {
+        const htmlElement = element as HTMLElement
+        const originalPointerEvents = htmlElement.style.pointerEvents
+        htmlElement.style.pointerEvents = 'none'
 
-    // If dragging a selected task, all selected tasks should move
-    if (selectedTaskIds.has(event.active.id as string)) {
-      // We'll handle this in handleDragEnd
-      console.log("Dragging a selected task. Selected tasks:", Array.from(selectedTaskIds))
-    } else {
-      // If dragging an unselected task, deselect all and select only this one
-      setSelectedTaskIds(new Set([event.active.id as string]))
-      console.log("Dragging an unselected task. Selecting only:", event.active.id)
+        // Force a reflow
+        htmlElement.offsetHeight
+
+        // Restore pointer events
+        htmlElement.style.pointerEvents = originalPointerEvents
+      })
+    } catch (error) {
+      console.error('❌ Error resetting hover states:', error)
     }
   }
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
 
-    console.log("Drag end:", { active, over, selectedTaskIds: Array.from(selectedTaskIds) })
 
-    // TODO: Implement drag and drop with TanStack Query
-    // For now, we'll disable drag and drop functionality to prevent errors
-    // This will be implemented in a future update with proper task reordering API
 
-    console.log("Drag and drop temporarily disabled - will be re-implemented with TanStack Query")
-    setActiveId(null)
-  }
+
 
   const handleToggleTask = (id: string) => {
     const currentTask = tasks.find(task => task.id === id)
@@ -453,8 +453,13 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
             ...baseTaskData,
             project_list_id: projectId
           }
-        case 'inbox':
         case 'deferred':
+          // For Deferred view, mark task as deferred
+          return {
+            ...baseTaskData,
+            is_deferred: true
+          }
+        case 'inbox':
         default:
           // For Inbox and other views, use base data (no project, no due date)
           return baseTaskData
@@ -533,8 +538,7 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
     updateTaskMutation.mutate({ id, updates: { content: newContent } })
   }
 
-  // Create a list of sortable items that includes the bottom drop area
-  const sortableItems = [...tasks.map((task) => task.id), BOTTOM_DROP_AREA_ID]
+
 
   return (
     <div className="flex flex-col h-full relative" ref={containerRef}>
@@ -556,30 +560,63 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
       )}
 
       {showHeader && (
-        <div className="flex items-center justify-between px-12 pt-12 pb-6">
-          <div>
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              {title === "Inbox" && <Inbox className="h-5 w-5 text-muted-foreground" />}
-              {title === "Today" && <Calendar className="h-5 w-5 text-muted-foreground" />}
-              {title === "Deferred" && <CirclePause className="h-5 w-5 text-muted-foreground" />}
-              {title === "Completed" && <CircleCheckBig className="h-5 w-5 text-muted-foreground" />}
-              {title}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {tasks.filter((task) => !task.checked).length} tasks remaining
-            </p>
-          </div>
-          <div className="flex items-center gap-4">
-            {selectedTaskIds.size > 0 && (
-              <div className="text-sm text-muted-foreground">
-                {selectedTaskIds.size} task{selectedTaskIds.size !== 1 ? "s" : ""} selected
+        <div className="px-12 pt-12 pb-6">
+          <div className="grid grid-cols-3 items-center">
+            {/* Left: Title and count */}
+            <div className="justify-self-start">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                {title === "Inbox" && <Inbox className="h-5 w-5 text-muted-foreground" />}
+                {title === "Today" && <Calendar className="h-5 w-5 text-muted-foreground" />}
+                {title === "Deferred" && <CirclePause className="h-5 w-5 text-muted-foreground" />}
+                {title === "Completed" && <CircleCheckBig className="h-5 w-5 text-muted-foreground" />}
+                {title}
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {tasks.filter((task) => !task.checked).length} tasks remaining
+              </p>
+            </div>
+
+            {/* Center: AI feature buttons (Inbox only) */}
+            <div className="justify-self-center">
+              {view === 'inbox' && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-transparent text-foreground/80 hover:text-foreground hover:!bg-primary/12 hover:border-[#E8DAFF] h-7 px-2.5 border-gray-300 text-xs gap-0 group"
+                    aria-label="AI Tag task suggestions"
+                    title="Tag Tasks"
+                  >
+                    <AiSparklesIcon className="h-4 w-4 mr-1.5 ai-gradient-on-hover" />
+                    Tag Tasks
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="bg-transparent text-foreground/80 hover:text-foreground hover:!bg-primary/12 hover:border-[#E8DAFF] h-7 px-2.5 border-gray-300 text-xs gap-0 group"
+                    aria-label="AI add to lists suggestions"
+                    title="Add To Lists"
+                  >
+                    <AiSparklesIcon className="h-4 w-4 mr-1.5 ai-gradient-on-hover" />
+                    Add To Lists
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Right: Utilities */}
+            <div className="justify-self-end flex items-center gap-4">
+              {selectedTaskIds.size > 0 && (
+                <div className="text-sm text-muted-foreground">
+                  {selectedTaskIds.size} task{selectedTaskIds.size !== 1 ? "s" : ""} selected
+                </div>
+              )}
+              <div className="flex items-center gap-3">
+                <Search className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
+                <ListFilter className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
+                <Undo2 className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
+                <Redo2 className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
               </div>
-            )}
-            <div className="flex items-center gap-3">
-              <Search className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
-              <ListFilter className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
-              <Undo2 className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
-              <Redo2 className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
             </div>
           </div>
         </div>
@@ -589,10 +626,6 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
         <TaskListContent
           isClient={isClient}
           tasks={tasks}
-          sensors={sensors}
-          sortableItems={sortableItems}
-          handleDragStart={handleDragStart}
-          handleDragEnd={handleDragEnd}
           handleContextMenuClose={handleContextMenuClose}
           handleContextMenuOpen={handleContextMenuOpen}
           handleToggleTask={handleToggleTask}
@@ -625,7 +658,7 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                className="absolute bottom-6 right-6 bg-black text-white rounded-[6px] hover:bg-black/90 px-4"
+                className="absolute bottom-6 right-6 bg-black text-white rounded-[6px] hover:bg-black/90 h-9 px-3"
                 onClick={handleAddTask}
               >
                 <Plus className="h-4 w-4 mr-1" />
@@ -672,10 +705,6 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
 function TaskListContent({
   isClient,
   tasks,
-  sensors,
-  sortableItems,
-  handleDragStart,
-  handleDragEnd,
   handleContextMenuClose,
   handleContextMenuOpen,
   handleToggleTask,
@@ -693,10 +722,6 @@ function TaskListContent({
 }: {
   isClient: boolean
   tasks: Task[]
-  sensors: any
-  sortableItems: string[]
-  handleDragStart: (event: DragStartEvent) => void
-  handleDragEnd: (event: DragEndEvent) => void
   handleContextMenuClose: () => void
   handleContextMenuOpen: (taskId: string, event: React.MouseEvent) => void
   handleToggleTask: (id: string) => void
@@ -749,18 +774,13 @@ function TaskListContent({
     )
   }
 
-  // Client-side with drag and drop
+  // Client-side with drag and drop (now handled by global DragContext)
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
-      <SortableContext items={sortableItems} strategy={verticalListSortingStrategy}>
-        <div className="w-full">
-          {tasks.map((task) => (
-            <ContextMenu
+    <>
+      <div className="w-full">
+          <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+            {tasks.map((task) => (
+              <ContextMenu
               key={task.id}
               onOpenChange={(open) => {
                 if (!open) handleContextMenuClose()
@@ -787,17 +807,17 @@ function TaskListContent({
               </ContextMenuTrigger>
               <TaskContextMenu handleContextMenuAction={handleContextMenuAction} />
             </ContextMenu>
-          ))}
+            ))}
+          </SortableContext>
 
           {/* Bottom drop area that integrates with DnD Kit */}
           <BottomDropArea />
         </div>
-      </SortableContext>
 
       {typeof document !== "undefined" &&
         activeId &&
         createPortal(
-          <DragOverlay adjustScale={false} zIndex={1000} dropAnimation={null}>
+          <DragOverlay adjustScale={false} zIndex={1000} dropAnimation={null} style={{ pointerEvents: 'none' }}>
             {/* Match the exact structure of the original task item */}
             <div className="drag-overlay-wrapper">
               <div className="drag-overlay-container">
@@ -825,7 +845,7 @@ function TaskListContent({
           </DragOverlay>,
           document.body,
         )}
-    </DndContext>
+    </>
   )
 }
 

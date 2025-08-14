@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -12,9 +12,63 @@ import { Icons } from '@/components/ui/icons'
 import { signInAction } from '@/lib/auth/actions'
 import { withoutAuth } from '@/lib/auth/context'
 import { Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { useFormStatus } from 'react-dom'
+import { supabase } from '@/lib/supabase/client'
+
+
+function SubmitButton() {
+  const { pending } = useFormStatus()
+  return (
+    <Button type="submit" className="w-full" disabled={pending}>
+      {pending && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
+      Sign in
+    </Button>
+  )
+}
 
 function LoginPage() {
-  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  // Ensure Supabase client has a session persistence strategy compatible with embedded browsers
+  useEffect(() => {
+    void supabase.auth.getSession()
+  }, [])
+
+  const isVsCodeSimpleBrowser = typeof navigator !== 'undefined' && /electron|vscode|code/i.test(navigator.userAgent)
+
+  async function handleClientSubmit(e: React.FormEvent<HTMLFormElement>) {
+    if (!isVsCodeSimpleBrowser) return // Let server action handle normal browsers
+    e.preventDefault()
+    setIsSubmitting(true)
+    setError(null)
+
+    const formData = new FormData(e.currentTarget)
+    const email = (formData.get('email') as string) || ''
+    const password = (formData.get('password') as string) || ''
+
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) {
+      setError(error.message)
+      setIsSubmitting(false)
+      return
+    }
+
+    // Make sure cookies/session are synced, then navigate
+    await bridgeSessionToServer()
+    window.location.href = '/dashboard'
+  }
+  // After client sign-in (VSCode Simple Browser), bridge tokens to server cookies
+  async function bridgeSessionToServer() {
+    const { data } = await supabase.auth.getSession()
+    const access_token = data.session?.access_token
+    const refresh_token = data.session?.refresh_token
+    if (!access_token || !refresh_token) return
+    await fetch('/api/auth/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token, refresh_token }),
+    })
+  }
+
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const searchParams = useSearchParams()
@@ -25,18 +79,6 @@ function LoginPage() {
       setError(decodeURIComponent(errorParam))
     }
   }, [searchParams])
-
-  const handleSubmit = async (formData: FormData) => {
-    setIsLoading(true)
-    setError(null)
-
-    try {
-      await signInAction(formData)
-    } catch (error) {
-      setError('An unexpected error occurred. Please try again.')
-      setIsLoading(false)
-    }
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -64,7 +106,7 @@ function LoginPage() {
             </CardDescription>
           </CardHeader>
 
-          <form action={handleSubmit}>
+          <form action={isVsCodeSimpleBrowser ? undefined : (signInAction as any)} onSubmit={handleClientSubmit}>
             <CardContent className="space-y-4">
               {error && (
                 <Alert variant="destructive">
@@ -82,7 +124,6 @@ function LoginPage() {
                   autoComplete="email"
                   required
                   placeholder="Enter your email"
-                  disabled={isLoading}
                 />
               </div>
 
@@ -96,7 +137,6 @@ function LoginPage() {
                     autoComplete="current-password"
                     required
                     placeholder="Enter your password"
-                    disabled={isLoading}
                   />
                   <Button
                     type="button"
@@ -104,7 +144,6 @@ function LoginPage() {
                     size="sm"
                     className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                     onClick={() => setShowPassword(!showPassword)}
-                    disabled={isLoading}
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4" />
@@ -131,16 +170,7 @@ function LoginPage() {
             </CardContent>
 
             <CardFooter>
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={isLoading}
-              >
-                {isLoading && (
-                  <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                Sign in
-              </Button>
+              <SubmitButton />
             </CardFooter>
           </form>
         </Card>

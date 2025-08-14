@@ -17,6 +17,8 @@ export interface FrontendTask {
   description?: string
   completedAt?: string
   project_list_id?: string
+  is_deferred?: boolean
+  sort_order?: number
 }
 
 // Backend Task interface (what the API expects/returns)
@@ -32,6 +34,7 @@ export interface BackendTask {
   user_id: string
   sort_order: number
   is_deleted: boolean
+  is_deferred: boolean
   created_at: string
   updated_at: string
   project_lists?: {
@@ -63,6 +66,8 @@ export const transformBackendToFrontend = (backendTask: BackendTask): FrontendTa
     description: backendTask.description,
     completedAt: backendTask.completed_at,
     project_list_id: backendTask.project_list_id,
+    is_deferred: backendTask.is_deferred,
+    sort_order: backendTask.sort_order,
   }
 }
 
@@ -86,6 +91,12 @@ export const transformFrontendToBackend = (frontendTask: Partial<FrontendTask>):
   }
   if (frontendTask.project_list_id !== undefined) {
     backendData.project_list_id = frontendTask.project_list_id
+  }
+  if (frontendTask.sort_order !== undefined) {
+    backendData.sort_order = frontendTask.sort_order
+  }
+  if (frontendTask.is_deferred !== undefined) {
+    backendData.is_deferred = frontendTask.is_deferred
   }
 
   return backendData

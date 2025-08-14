@@ -1,21 +1,29 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, useMemo, type ReactNode } from "react"
 import dynamic from "next/dynamic"
 import {
   DndContext,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type DragCancelEvent,
   PointerSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
+  useDndMonitor,
   MeasuringStrategy,
   defaultDropAnimationSideEffects,
+  closestCenter,
+  type UniqueIdentifier,
 } from "@dnd-kit/core"
-import { sortableKeyboardCoordinates } from "@dnd-kit/sortable"
+import {
+  sortableKeyboardCoordinates,
+  arrayMove,
+} from "@dnd-kit/sortable"
 import { useTaskContext } from "./task-context"
+import { useTaskMovement, useBulkTaskMovement } from "@/hooks/use-task-movement"
 
 type DragContextType = {
   activeTaskId: string | null
@@ -25,6 +33,8 @@ type DragContextType = {
   isDraggingOver: (id: string) => boolean
   setSelectedTaskIds: (ids: Set<string>) => void
   isMultiDragging: boolean
+  dragType: 'sorting' | 'cross-list' | null
+  sortableItems: UniqueIdentifier[]
 }
 
 const DragContext = createContext<DragContextType>({
@@ -35,29 +45,59 @@ const DragContext = createContext<DragContextType>({
   isDraggingOver: () => false,
   setSelectedTaskIds: () => {},
   isMultiDragging: false,
+  dragType: null,
+  sortableItems: [],
 })
 
 export function useDragContext() {
   return useContext(DragContext)
 }
 
+// Monitor component to catch all drag events
+function DragMonitor() {
+  // Keep monitor lightweight; avoid per-frame work/logging
+  useDndMonitor({
+    onDragStart(event) {
+      // console.debug("MONITOR: onDragStart", { id: event.active?.id })
+    },
+    // Intentionally omit onDragMove to reduce main-thread pressure
+    onDragOver(event) {
+      // console.debug("MONITOR: onDragOver", { over: event.over?.id })
+    },
+    onDragEnd(event) {
+      // console.debug("MONITOR: onDragEnd", { id: event.active?.id, over: event.over?.id })
+    },
+    onDragCancel() {
+      // console.debug("MONITOR: onDragCancel")
+    },
+  })
+  return null
+}
+
 export function DragContextProvider({ children }: { children: ReactNode }) {
-  const { moveTasksToList, findTaskList } = useTaskContext()
+  const { moveTasksToList, findTaskList, getTasksForList, activeListId } = useTaskContext()
+  const taskMovement = useTaskMovement()
+  const bulkTaskMovement = useBulkTaskMovement()
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null)
-  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
+  const [selectedTaskIds, setSelectedTaskIdsInternal] = useState<Set<string>>(new Set())
   const [activeDroppableId, setActiveDroppableId] = useState<string | null>(null)
-  const [droppableAreas, setDroppableAreas] = useState<Record<string, boolean>>({})
+  // Removed droppableAreas to avoid frequent object churn; rely on activeDroppableId
   const [isMultiDragging, setIsMultiDragging] = useState(false)
   const [isClient, setIsClient] = useState(false)
+  const [dragType, setDragType] = useState<'sorting' | 'cross-list' | null>(null)
+  const [sortableItems, setSortableItems] = useState<UniqueIdentifier[]>([])
 
-  // Enhanced sensors with better activation constraints
+  const setSelectedTaskIds = (ids: Set<string>) => {
+    setSelectedTaskIdsInternal(ids)
+  }
+
+  // Default sensors without custom activation constraints
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5, // Reduced distance for easier activation
-        tolerance: 5, // Added tolerance
-        delay: 0, // No delay
-      },
+      // Add some debugging to the sensor
+      onActivation: (event) => {
+        console.log("🎯 SENSOR: PointerSensor activated", event)
+      }
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -69,21 +109,35 @@ export function DragContextProvider({ children }: { children: ReactNode }) {
     setIsClient(true)
   }, [])
 
-  // Reset state when component unmounts
+  // Update sortable items when active list changes
   useEffect(() => {
-    return () => {
-      setActiveTaskId(null)
-      setActiveDroppableId(null)
-      setDroppableAreas({})
-      setIsMultiDragging(false)
+    if (activeListId) {
+      const tasks = getTasksForList(activeListId)
+      const taskIds = tasks.map(task => task.id)
+      setSortableItems(taskIds)
+      console.log(`🎯 DRAG CONTEXT: Updated sortable items for list ${activeListId}:`, taskIds)
     }
-  }, [])
+  }, [activeListId, getTasksForList])
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event
-    // Check if we're dragging a task (IDs start with "task-")
-    if (typeof active.id === "string" && active.id.startsWith("task-")) {
+    console.log("🚀 DRAG START EVENT FIRED:", {
+      activeId: active.id,
+      activeData: active.data.current,
+      timestamp: Date.now()
+    })
+
+    // Check if we're dragging a task by validating the drag data type or checking if it's in sortableItems
+    const dragData = active.data.current
+    const isTaskDrag = dragData?.type === "sortable-task" || sortableItems.includes(active.id)
+
+    if (typeof active.id === "string" && isTaskDrag) {
+      console.log("✅ Valid task drag detected, setting state...")
       setActiveTaskId(active.id)
+
+      // Determine drag type based on the active element's data
+      const isSortingDrag = dragData?.type === "sortable-task"
+      setDragType(isSortingDrag ? 'sorting' : 'cross-list')
 
       // Check if we're dragging a selected task and there are multiple selections
       const isSelectedTask = selectedTaskIds.has(active.id)
@@ -91,83 +145,138 @@ export function DragContextProvider({ children }: { children: ReactNode }) {
 
       setIsMultiDragging(isSelectedTask && isMultipleSelection)
 
-      console.log("Drag started:", {
+      console.log("📊 Drag state set:", {
         taskId: active.id,
+        dragType: isSortingDrag ? 'sorting' : 'cross-list',
         isSelected: isSelectedTask,
         multipleSelected: isMultipleSelection,
         isMultiDragging: isSelectedTask && isMultipleSelection,
         selectedTasks: Array.from(selectedTaskIds),
       })
+    } else {
+      console.log("❌ Invalid drag target:", active.id, "- not a task or not in sortable items")
     }
   }
 
   const handleDragOver = (event: DragOverEvent) => {
     const { over } = event
 
-    // Check if we're over a droppable sidebar item
+    // Only update when value actually changes to avoid re-renders each frame
     if (over && typeof over.id === "string" && over.id.startsWith("sidebar-")) {
       const targetId = over.id.replace("sidebar-", "")
-      setActiveDroppableId(targetId)
 
-      // Update droppable areas state for visual feedback
-      setDroppableAreas((prev) => ({
-        ...prev,
-        [over.id]: true,
-      }))
+      // Update active droppable only when it changes
+      setActiveDroppableId(prev => (prev !== targetId ? targetId : prev))
 
-      console.log("Dragging over:", over.id)
+      // No droppableAreas map; visual feedback should use isOver from useDroppable locally
     } else {
-      setActiveDroppableId(null)
+      // Clear only if previously set
+      setActiveDroppableId(prev => (prev !== null ? null : prev))
     }
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
-    console.log("Drag ended:", {
-      active,
-      over,
+    console.log("🏁 DRAG END EVENT FIRED:", {
+      activeId: active?.id,
+      overId: over?.id,
+      activeTaskId,
       isMultiDragging,
       selectedTasks: Array.from(selectedTaskIds),
+      timestamp: Date.now()
     })
 
-    // If we have an active task and it's dropped on a sidebar item
-    if (activeTaskId && over && typeof over.id === "string" && over.id.startsWith("sidebar-")) {
-      const targetListId = over.id.replace("sidebar-", "")
-      const sourceListId = findTaskList(activeTaskId)
-
-      // Only move if source and target are different
-      if (sourceListId && sourceListId !== targetListId) {
-        // If we're multi-dragging, move all selected tasks
-        if (isMultiDragging && selectedTaskIds.size > 0) {
-          console.log("Moving multiple tasks:", {
-            taskIds: Array.from(selectedTaskIds),
-            from: sourceListId,
-            to: targetListId,
-          })
-          moveTasksToList(Array.from(selectedTaskIds), targetListId)
-        } else {
-          // Otherwise just move the active task
-          console.log("Moving single task:", {
-            taskId: activeTaskId,
-            from: sourceListId,
-            to: targetListId,
-          })
-          moveTasksToList([activeTaskId], targetListId)
-        }
-      }
-    }
+    // Store current state before resetting
+    const currentActiveTaskId = activeTaskId
+    const currentDragType = dragType
+    const currentIsMultiDragging = isMultiDragging
 
     // Reset state
+    console.log("🔄 Resetting drag state...")
     setActiveTaskId(null)
     setActiveDroppableId(null)
-    setDroppableAreas({})
+    // droppableAreas removed
     setIsMultiDragging(false)
+    setDragType(null)
+
+    // Handle sorting within the same list
+    if (currentDragType === 'sorting' && currentActiveTaskId && over && typeof over.id === "string" && sortableItems.includes(over.id)) {
+      const activeIndex = sortableItems.indexOf(currentActiveTaskId)
+      const overIndex = sortableItems.indexOf(over.id)
+
+      if (activeIndex !== overIndex && activeIndex !== -1 && overIndex !== -1) {
+        const newItems = arrayMove(sortableItems, activeIndex, overIndex)
+        setSortableItems(newItems)
+
+        // TODO: Update task order in the backend
+        console.log("Reordered tasks:", { from: activeIndex, to: overIndex, newOrder: newItems })
+      }
+    }
+    // If we have an active task and it's dropped on a sidebar item (cross-list drag)
+    if (currentActiveTaskId && over && typeof over.id === "string" && over.id.startsWith("sidebar-")) {
+      const targetView = over.id.replace("sidebar-", "")
+      const sourceListId = findTaskList(currentActiveTaskId)
+
+      console.log("Moving task(s) to:", targetView, "from:", sourceListId)
+
+      // Determine if this is a project drop
+      const isProjectDrop = !['inbox', 'today', 'scheduled', 'deferred', 'completed', 'trash'].includes(targetView)
+      const projectId = isProjectDrop ? targetView : undefined
+
+      if (currentIsMultiDragging && selectedTaskIds.size > 1) {
+        // Move all selected tasks using bulk movement
+        const tasksToMove = Array.from(selectedTaskIds).map(taskId => ({
+          taskId,
+          targetView: isProjectDrop ? 'project' : targetView,
+          projectId,
+        }))
+
+        console.log("Moving multiple tasks:", tasksToMove)
+        try {
+          bulkTaskMovement.mutate(tasksToMove, {
+            onError: (error) => {
+              console.error('❌ Bulk task movement failed:', error)
+              // Don't let the error freeze the UI
+            },
+            onSuccess: () => {
+              console.log('✅ Bulk task movement successful')
+            }
+          })
+        } catch (error) {
+          console.error('❌ Error initiating bulk task movement:', error)
+        }
+      } else {
+        // Move single task
+        console.log("Moving single task:", currentActiveTaskId, "to:", targetView)
+        try {
+          taskMovement.mutate({
+            taskId: currentActiveTaskId,
+            targetView: isProjectDrop ? 'project' : targetView,
+            projectId,
+          }, {
+            onError: (error) => {
+              console.error('❌ Task movement failed:', error)
+              // Don't let the error freeze the UI
+            },
+            onSuccess: () => {
+              console.log('✅ Task movement successful')
+            }
+          })
+        } catch (error) {
+          console.error('❌ Error initiating task movement:', error)
+        }
+      }
+
+      // Clear selection after successful drop
+      setSelectedTaskIdsInternal(new Set())
+    }
   }
 
   // Helper function to check if dragging over a specific area
   const isDraggingOver = (id: string): boolean => {
     const fullId = id.startsWith("sidebar-") ? id : `sidebar-${id}`
-    return !!droppableAreas[fullId]
+    // Consider "over" when activeDroppableId matches the target id
+    return activeDroppableId === fullId.replace("sidebar-", "")
   }
 
   // Custom drop animation to maintain consistent size
@@ -181,53 +290,44 @@ export function DragContextProvider({ children }: { children: ReactNode }) {
     }),
   }
 
-  // Don't render DndContext on server to prevent hydration issues
-  if (!isClient) {
-    return (
-      <DragContext.Provider
-        value={{
-          activeTaskId: null,
-          selectedTaskIds: new Set(),
-          isDraggingTask: false,
-          activeDroppableId: null,
-          isDraggingOver: () => false,
-          setSelectedTaskIds: () => {},
-          isMultiDragging: false,
-        }}
-      >
-        {children}
-      </DragContext.Provider>
-    )
-  }
+  // Always call hooks in the same order. Avoid early returns that skip hooks.
+  const contextValue = useMemo(() => ({
+    activeTaskId,
+    selectedTaskIds,
+    isDraggingTask: activeTaskId !== null,
+    activeDroppableId,
+    isDraggingOver,
+    setSelectedTaskIds,
+    isMultiDragging,
+    dragType,
+    sortableItems,
+  }), [activeTaskId, selectedTaskIds, activeDroppableId, isMultiDragging, dragType, sortableItems])
 
   return (
-    <DragContext.Provider
-      value={{
-        activeTaskId,
-        selectedTaskIds,
-        isDraggingTask: activeTaskId !== null,
-        activeDroppableId,
-        isDraggingOver,
-        setSelectedTaskIds,
-        isMultiDragging,
-      }}
-    >
-      <DndContext
-        sensors={sensors}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-        measuring={{
-          droppable: {
-            strategy: MeasuringStrategy.Always, // Always measure to improve accuracy
-          },
-        }}
-        modifiers={[]} // Remove any modifiers that might cause lag
-        // @ts-ignore - Type issue with dropAnimation
-        dropAnimation={dropAnimation}
-      >
-        {children}
-      </DndContext>
+    <DragContext.Provider value={contextValue}>
+      {isClient ? (
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          collisionDetection={closestCenter}
+          measuring={{
+            droppable: {
+              // Measure only during active drag to reduce overhead
+              strategy: MeasuringStrategy.WhileDragging,
+            },
+          }}
+          modifiers={[]}
+          // @ts-ignore - Type issue with dropAnimation
+          dropAnimation={dropAnimation}
+        >
+          <DragMonitor />
+          {children}
+        </DndContext>
+      ) : (
+        children
+      )}
     </DragContext.Provider>
   )
 }

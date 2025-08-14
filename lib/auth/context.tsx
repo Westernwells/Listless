@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/lib/supabase/client'
 import type { User, Session } from '@supabase/supabase-js'
 import type { Database } from '@/lib/supabase/types'
@@ -32,10 +33,10 @@ interface AuthProviderProps {
   initialSession?: Session | null
 }
 
-export function AuthProvider({ 
-  children, 
-  initialUser = null, 
-  initialSession = null 
+export function AuthProvider({
+  children,
+  initialUser = null,
+  initialSession = null
 }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(initialUser)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
@@ -43,6 +44,7 @@ export function AuthProvider({
   const [loading, setLoading] = useState(!initialUser)
 
   const supabase = createClient()
+  const queryClient = useQueryClient()
 
   const fetchUserProfile = async (userId: string) => {
     try {
@@ -88,6 +90,10 @@ export function AuthProvider({
 
   const signOut = async () => {
     try {
+      // Cancel all pending queries and clear cache before logout
+      queryClient.cancelQueries()
+      queryClient.clear()
+
       // Don't set loading during logout to avoid UI flicker
       const { error } = await supabase.auth.signOut()
 
@@ -109,10 +115,10 @@ export function AuthProvider({
   useEffect(() => {
     // Get initial session if not provided
     if (!initialUser) {
-      // Use getUser() instead of getSession() for secure authentication
-      supabase.auth.getUser().then(({ data: { user }, error }) => {
-        if (error) {
-          console.error('Error getting user:', error)
+      // Start with session first, then get user if session exists
+      supabase.auth.getSession().then(({ data: { session }, error: sessionError }) => {
+        if (sessionError) {
+          console.error('Error getting session:', sessionError)
           setSession(null)
           setUser(null)
           setUserProfile(null)
@@ -120,12 +126,24 @@ export function AuthProvider({
           return
         }
 
-        setUser(user)
-        // We don't set session here since we're using getUser()
-        setSession(null)
+        setSession(session)
 
-        if (user) {
-          fetchUserProfile(user.id).then(setUserProfile)
+        if (session?.user) {
+          // We have a valid session, set the user
+          setUser(session.user)
+          fetchUserProfile(session.user.id).then(setUserProfile)
+        } else {
+          // No session, try getUser() as fallback for server-side auth
+          supabase.auth.getUser().then(({ data: { user }, error: userError }) => {
+            if (userError && !userError.message.includes('session missing')) {
+              console.error('Error getting user:', userError)
+            }
+
+            setUser(user)
+            if (user) {
+              fetchUserProfile(user.id).then(setUserProfile)
+            }
+          })
         }
 
         setLoading(false)
@@ -154,6 +172,9 @@ export function AuthProvider({
 
       // Handle specific auth events
       if (event === 'SIGNED_OUT') {
+        // Clear all queries when user signs out
+        queryClient.cancelQueries()
+        queryClient.clear()
         setUser(null)
         setUserProfile(null)
         setSession(null)

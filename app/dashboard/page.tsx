@@ -13,6 +13,7 @@ import { SearchDialog } from "@/components/search-dialog"
 import { DragContextProvider } from "../../components/task/drag-context"
 import { ScheduledView } from "@/components/task/scheduled-view"
 import { useRequireAuth } from "@/lib/auth/context"
+import { DragDropTest } from "@/components/test/drag-drop-test"
 
 function TaskContent() {
   const { activeListId, getTasksForList, getListTitle, currentView, allTasks, toggleTask, addTask, projects } =
@@ -103,6 +104,9 @@ export default function Page() {
 
           {/* Global Dialogs */}
           <SearchDialog open={isSearchOpen} onOpenChange={setIsSearchOpen} />
+
+          {/* Test Component for Drag & Drop */}
+          <DragDropTest />
         </SidebarProvider>
       </DragContextProvider>
     </TaskProvider>

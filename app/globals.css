@@ -299,6 +299,16 @@
     transition: background-color 0.08s ease-out !important; /* Even faster for hover */
   }
 
+  /* Disable hover effects during drag operations to prevent sticky states */
+  .dragging-active .task-item:hover,
+  .dragging-active .task-container:hover {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Hover reset CSS removed - was causing application freeze issues */
+
   /* Task selection styling - contained within task boundaries */
   .task-selected {
     background-color: #f3f4f4 !important; /* Light grey background */
@@ -316,15 +326,48 @@
   }
 
   /* Ensure the selection doesn't extend to the edges */
+  /* Ensure AI wand icon is fully visible with gradient */
+  .ai-wand {
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+  .ai-wand path {
+    opacity: 1 !important;
+    visibility: visible !important;
+    stroke-width: 2 !important;
+  }
+
+  /* AI gradient hover effect - currently using flat purple color */
+  .ai-gradient-on-hover {
+    transition: opacity 0.2s ease;
+  }
+
   [data-selected="true"] {
     background-color: transparent;
   }
 
-  /* Checkbox styling - dark purple when checked */
-  [data-state="checked"] {
+  /* Checkbox styling - comprehensive fix for visual consistency */
+  /* Target the Radix UI checkbox root element specifically */
+  button[role="checkbox"] {
+    border-radius: 2px !important; /* Force consistent rounded corners */
+    width: 14px !important; /* Match task item size h-3.5 */
+    height: 14px !important; /* Match task item size w-3.5 */
+    min-width: 14px !important; /* Prevent shrinking */
+    min-height: 14px !important; /* Prevent shrinking */
+    box-sizing: border-box !important; /* Ensure proper sizing */
+  }
+
+  /* Checked state styling */
+  button[role="checkbox"][data-state="checked"] {
     background-color: #4a1d96 !important; /* Dark purple */
     border-color: #4a1d96 !important;
     border-radius: 2px !important; /* Preserve rounded corners */
+  }
+
+  /* Ensure the checkbox indicator (checkmark) is properly sized */
+  button[role="checkbox"] svg {
+    width: 10px !important; /* Slightly smaller than container */
+    height: 10px !important; /* Slightly smaller than container */
   }
 
   /* Drag and drop styles */

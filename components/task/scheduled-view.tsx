@@ -11,18 +11,10 @@ import { cn } from "@/lib/utils"
 import { useTaskContext } from "./task-context"
 import { useDragContext } from "./drag-context"
 import { SortableTaskItem } from "./sortable-task-item"
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-  useDroppable,
-} from "@dnd-kit/core"
-import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable"
+// Removed DndContext imports - using global drag context instead
+import { useDroppable } from "@dnd-kit/core"
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
+
 import { addDays, isAfter, isSameDay, getMonth, getYear, format } from "date-fns"
 
 interface ScheduledItem {
@@ -53,18 +45,7 @@ export function ScheduledView() {
   // Current date for calculations (May 27th as specified)
   const currentDate = new Date(2024, 4, 27) // May 27, 2024 (Tuesday)
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5,
-        tolerance: 5,
-        delay: 0,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  )
+  // Removed sensors - using global drag context instead
 
   // Generate date sections based on the current date
   const generateDateSections = (): DateSection[] => {
@@ -278,64 +259,7 @@ export function ScheduledView() {
 
   const dateSections = organizeItemsIntoSections()
 
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string)
-  }
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event
-
-    if (over && active.id !== over.id) {
-      const draggedItemId = active.id as string
-      const targetSectionId = over.id as string
-
-      // Find the target section
-      const targetSection = dateSections.find((section) => section.id === targetSectionId)
-
-      if (targetSection) {
-        let newDueDate: string
-
-        if (targetSection.date) {
-          // Use the specific date
-          newDueDate = format(targetSection.date, "yyyy-MM-dd")
-        } else if (targetSection.id === "june-rest") {
-          // Use June 4th for the June range
-          newDueDate = format(new Date(2024, 5, 4), "yyyy-MM-dd")
-        } else {
-          // For monthly sections, use the 1st of the month
-          switch (targetSection.id) {
-            case "july":
-              newDueDate = format(new Date(2024, 6, 1), "yyyy-MM-dd")
-              break
-            case "august":
-              newDueDate = format(new Date(2024, 7, 1), "yyyy-MM-dd")
-              break
-            case "september":
-              newDueDate = format(new Date(2024, 8, 1), "yyyy-MM-dd")
-              break
-            case "october":
-              newDueDate = format(new Date(2024, 9, 1), "yyyy-MM-dd")
-              break
-            default:
-              newDueDate = format(new Date(), "yyyy-MM-dd")
-          }
-        }
-
-        // Update the due date based on item type
-        const draggedItem = dateSections.flatMap((section) => section.items).find((item) => item.id === draggedItemId)
-
-        if (draggedItem) {
-          if (draggedItem.type === "task") {
-            updateTaskDueDate(draggedItemId, newDueDate)
-          } else if (draggedItem.type === "project") {
-            updateProject(draggedItemId, { whenDate: newDueDate })
-          }
-        }
-      }
-    }
-
-    setActiveId(null)
-  }
+  // Removed drag handlers - using global drag context instead
 
   const handleTaskSelect = (id: string, event: React.MouseEvent) => {
     if (editingId) return
@@ -392,27 +316,21 @@ export function ScheduledView() {
 
       {/* Content */}
       <div className="flex-1 overflow-auto px-12 pb-6">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          {dateSections.map((section) => (
-            <DateSectionComponent
-              key={section.id}
-              section={section}
-              currentDate={currentDate}
-              onTaskSelect={handleTaskSelect}
-              onTaskExpand={handleTaskExpand}
-              selectedTaskIds={selectedTaskIds}
-              expandedTaskId={expandedTaskId}
-              editingId={editingId}
-              setEditingId={setEditingId}
-              onToggleTask={toggleTask}
-            />
-          ))}
-        </DndContext>
+        {/* Removed DndContext wrapper - using global drag context instead */}
+        {dateSections.map((section) => (
+          <DateSectionComponent
+            key={section.id}
+            section={section}
+            currentDate={currentDate}
+            onTaskSelect={handleTaskSelect}
+            onTaskExpand={handleTaskExpand}
+            selectedTaskIds={selectedTaskIds}
+            expandedTaskId={expandedTaskId}
+            editingId={editingId}
+            setEditingId={setEditingId}
+            onToggleTask={toggleTask}
+          />
+        ))}
       </div>
     </div>
   )

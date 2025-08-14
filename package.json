@@ -2,6 +2,10 @@
   "name": "my-v0-project",
   "version": "0.1.0",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/josh000111/Listless_V0_8-6.git"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -65,7 +69,7 @@
     "next-themes": "^0.4.4",
     "openai": "^4.73.1",
     "react": "^19",
-    "react-day-picker": "8.10.1",
+    "react-day-picker": "^9.8.0",
     "react-dom": "^19",
     "react-hook-form": "^7.54.1",
     "react-resizable-panels": "^2.1.7",

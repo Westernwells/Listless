@@ -133,11 +133,11 @@ export async function reorderTasks(
       }
     }
 
-    // Perform batch update
+    // Perform batch update with explicit null handling
     const updates = moves.map(move => ({
       id: move.id,
       sort_order: move.sort_order,
-      project_list_id: move.parent_id,
+      project_list_id: move.parent_id === null || move.parent_id === undefined ? null : move.parent_id,
       updated_at: new Date().toISOString(),
     }))
 

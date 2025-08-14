@@ -1,7 +1,6 @@
 "use client"
 
 import { useSortable } from "@dnd-kit/sortable"
-import { useDraggable } from "@dnd-kit/core"
 import { CSS } from "@dnd-kit/utilities"
 import { TaskItem, type TaskItemProps } from "./task-item"
 import { GripVertical } from "lucide-react"
@@ -17,12 +16,13 @@ export interface SortableTaskItemProps extends TaskItemProps {
 export function SortableTaskItem(props: SortableTaskItemProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [isClient, setIsClient] = useState(false)
-  const { selectedTaskIds, isMultiDragging, activeTaskId } = useDragContext()
+  const { selectedTaskIds, isMultiDragging, activeTaskId, dragType } = useDragContext()
   const isSelected = selectedTaskIds.has(props.id)
 
   // Set client-side flag to prevent hydration issues
   useEffect(() => {
     setIsClient(true)
+    // console.debug(`SortableTaskItem mounted`, { id: props.id })
   }, [])
 
   // Determine if this task is part of a multi-drag operation
@@ -31,112 +31,57 @@ export function SortableTaskItem(props: SortableTaskItemProps) {
   // If this is not the active task but is part of a multi-drag, it should appear as being dragged
   const shouldAppearDragged = isPartOfMultiDrag && activeTaskId !== props.id
 
-  // Only call hooks on client side to prevent SSR issues
-  const sortableResult = typeof window !== 'undefined' ? useSortable({
-    id: props.id,
-    data: {
-      type: "task",
-      task: props,
-      isSelected,
-      isPartOfMultiDrag,
-    },
-  }) : {
-    attributes: {},
-    listeners: {},
-    setNodeRef: () => {},
-    transform: null,
-    transition: undefined,
-    isDragging: false,
-  }
-
-  // Local drag-and-drop for sorting within a list (only on client)
+  // Use sortable hook for both sorting and cross-list dragging
   const {
-    attributes: sortableAttributes,
-    listeners: sortableListeners,
-    setNodeRef: setSortableNodeRef,
-    transform: sortableTransform,
-    transition: sortableTransition,
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
     isDragging: isSortableDragging,
-  } = isClient ? sortableResult : {
-    attributes: {},
-    listeners: {},
-    setNodeRef: () => {},
-    transform: null,
-    transition: undefined,
-    isDragging: false,
-  }
-
-  // Only call hooks on client side to prevent SSR issues
-  const draggableResult = typeof window !== 'undefined' ? useDraggable({
+  } = useSortable({
     id: props.id,
     data: {
-      type: "task",
+      type: "sortable-task", // Always use sortable-task as the default type
       task: props,
       isSelected,
       isPartOfMultiDrag,
       selectedCount: selectedTaskIds.size,
     },
-  }) : {
-    attributes: {},
-    listeners: {},
-    setNodeRef: () => {},
-    transform: null,
-    isDragging: false,
-  }
+  })
 
-  // Global drag-and-drop for moving between lists (only on client)
-  const {
-    attributes: draggableAttributes,
-    listeners: draggableListeners,
-    setNodeRef: setDraggableNodeRef,
-    transform: draggableTransform,
-    isDragging: isDraggableDragging,
-  } = isClient ? draggableResult : {
-    attributes: {},
-    listeners: {},
-    setNodeRef: () => {},
-    transform: null,
-    isDragging: false,
-  }
-
-  // Update combined dragging state
+  // Update dragging state
   useEffect(() => {
-    setIsDragging(isSortableDragging || isDraggableDragging || shouldAppearDragged)
-  }, [isSortableDragging, isDraggableDragging, shouldAppearDragged])
+    setIsDragging(isSortableDragging || shouldAppearDragged)
+  }, [isSortableDragging, shouldAppearDragged])
 
-  // Combine the refs
-  const setRefs = (node: HTMLElement | null) => {
-    setSortableNodeRef(node)
-    setDraggableNodeRef(node)
-  }
-
-  // Combine the listeners and attributes
-  const combinedListeners = {
-    ...sortableListeners,
-    ...draggableListeners,
+  // Use listeners and attributes only on client side
+  const finalListeners = isClient ? {
+    ...listeners,
     onClick: undefined, // Remove onClick to allow our own click handler to work
-  }
+  } : {}
 
-  const combinedAttributes = {
-    ...sortableAttributes,
-    ...draggableAttributes,
-  }
+  const finalAttributes = isClient ? attributes : {}
 
-  // Use sortable transform for local sorting, draggable transform for global dragging
-  const transform = isDraggableDragging ? draggableTransform : sortableTransform
+  // Debug logging for listeners
+  useEffect(() => {
+    if (isClient && listeners) {
+      // console.debug(`Task listeners`, { id: props.id, hasListeners: !!listeners, listenerKeys: Object.keys(listeners || {}) })
+    }
+  }, [isClient, listeners, attributes, props.id])
 
-  // Create a style object without conflicting transition properties
+  // Create a style object
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition: isDragging ? undefined : sortableTransition, // Remove transition during drag
+    transition: isDragging ? undefined : transition,
     opacity: isDragging ? 0.3 : 1,
     zIndex: isDragging ? 999 : "auto",
-    willChange: "transform", // Add will-change for performance optimization
+    willChange: "transform",
   }
 
   return (
     <div
-      ref={setRefs}
+      ref={setNodeRef}
       style={style}
       className="relative group task-container transition-all duration-200 ease-out transform-gpu"
       data-dragging={isDragging ? "true" : "false"}
@@ -148,8 +93,11 @@ export function SortableTaskItem(props: SortableTaskItemProps) {
         <div className="grip-handle">
           <button
             className="p-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
-            {...combinedAttributes}
-            {...combinedListeners}
+            {...finalAttributes}
+            {...finalListeners}
+            onMouseDown={(e) => {
+              // Intentionally quiet during drag to avoid console overhead
+            }}
             aria-label="Drag to reorder"
             suppressHydrationWarning
           >

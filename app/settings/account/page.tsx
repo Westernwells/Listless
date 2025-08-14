@@ -17,14 +17,30 @@ import { DeleteAccountModal } from "@/components/settings/account/delete-account
 import { toast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/auth/context"
 import { Mail, KeyRound, Trash2, Github, Gitlab, AtSign, CheckCircle } from "lucide-react"
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useUserProfile, useUpdateUserProfile } from '@/hooks/use-user-profile'
+
+const ProfileSchema = z.object({
+  name: z.string().min(1, 'Full name is required').max(200).optional().or(z.literal('')),
+  bio: z.string().max(1000).optional().or(z.literal('')),
+})
+
+type ProfileFormValues = z.infer<typeof ProfileSchema>
 
 export default function AccountSettingsPage() {
-  const { user: authUser, userProfile, loading } = useAuth()
-  const [user, setUser] = useState({
-    name: userProfile?.name || authUser?.user_metadata?.name || "",
-    email: authUser?.email || "",
-    avatarUrl: userProfile?.avatar_url || "/placeholder.svg?width=128&height=128",
-    bio: userProfile?.bio || "",
+  const { user: authUser, refreshUser } = useAuth()
+  const { data: profile } = useUserProfile()
+  const updateMutation = useUpdateUserProfile()
+
+  const form = useForm<ProfileFormValues>({
+    resolver: zodResolver(ProfileSchema),
+    values: {
+      name: profile?.name || authUser?.user_metadata?.name || '',
+      bio: profile?.bio || '',
+    },
+    mode: 'onChange',
   })
 
   const [isChangeEmailModalOpen, setIsChangeEmailModalOpen] = useState(false)
@@ -34,52 +50,41 @@ export default function AccountSettingsPage() {
   const [welcomeMessage, setWelcomeMessage] = useState(false)
 
   useEffect(() => {
-    // Update user state when auth data changes
-    if (authUser && userProfile) {
-      setUser({
-        name: userProfile.name || authUser.user_metadata?.name || "",
-        email: authUser.email || "",
-        avatarUrl: userProfile.avatar_url || "/placeholder.svg?width=128&height=128",
-        bio: userProfile.bio || "",
-      })
-    }
+    // Sync form when profile arrives/changes
+    form.reset({
+      name: profile?.name || authUser?.user_metadata?.name || '',
+      bio: profile?.bio || '',
+    })
 
     // Check for URL parameters
     const urlParams = new URLSearchParams(window.location.search)
     if (urlParams.get('email_updated') === 'true') {
       setEmailUpdated(true)
-      // Clear the URL parameter
       window.history.replaceState({}, '', window.location.pathname)
     }
     if (urlParams.get('welcome') === 'true') {
       setWelcomeMessage(true)
-      // Clear the URL parameter
       window.history.replaceState({}, '', window.location.pathname)
     }
-  }, [authUser, userProfile])
+  }, [profile, authUser])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setUser((prev) => ({ ...prev, [name]: value }))
-  }
+  const handleProfileUpdate = form.handleSubmit(async (values) => {
+    const payload = {
+      name: values.name?.trim() || null,
+      bio: values.bio?.trim() || null,
+    }
+    await updateMutation.mutateAsync(payload)
+    await refreshUser()
+  })
 
-  const handleProfileUpdate = () => {
-    // API call to update profile
-    console.log("Profile updated:", user)
-    toast({
-      title: "Profile Updated",
-      description: "Your profile information has been successfully updated.",
-    })
-  }
-
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       const file = event.target.files[0]
-      // Simulate avatar upload and update
       const reader = new FileReader()
       reader.onloadend = () => {
-        setUser((prev) => ({ ...prev, avatarUrl: reader.result as string }))
-        toast({ title: "Avatar Updated", description: "Your avatar has been changed." })
+        setAvatarUrl(reader.result as string)
+        toast({ title: "Avatar Updated", description: "Preview updated. Upload integration is pending." })
       }
       reader.readAsDataURL(file)
     }
@@ -95,10 +100,11 @@ export default function AccountSettingsPage() {
           <SettingsCard.Description>Update your personal details and avatar.</SettingsCard.Description>
         </SettingsCard.Header>
         <SettingsCard.Content>
+          <form onSubmit={handleProfileUpdate} className="space-y-0">
           <div className="flex flex-col items-center space-y-4 sm:flex-row sm:space-y-0 sm:space-x-6">
             <Avatar className="h-24 w-24">
-              <AvatarImage src={user.avatarUrl || "/placeholder.svg"} alt={user.name} />
-              <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
+              <AvatarImage src={avatarUrl || profile?.avatar_url || "/placeholder.svg"} alt={profile?.name || ''} />
+              <AvatarFallback>{(profile?.name || 'U').charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
             <div className="flex-grow space-y-2">
               <Label
@@ -115,12 +121,12 @@ export default function AccountSettingsPage() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
-              <Input id="name" name="name" value={user.name} onChange={handleInputChange} />
+              <Input id="name" {...form.register('name')} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
               <div className="flex items-center space-x-2">
-                <Input id="email" name="email" type="email" value={user.email} disabled className="flex-grow" />
+                <Input id="email" name="email" type="email" value={authUser?.email || ''} disabled className="flex-grow" />
                 <Button variant="outline" size="sm" onClick={() => setIsChangeEmailModalOpen(true)}>
                   <Mail className="mr-2 h-4 w-4" /> Change
                 </Button>
@@ -131,18 +137,18 @@ export default function AccountSettingsPage() {
             <Label htmlFor="bio">Bio</Label>
             <textarea
               id="bio"
-              name="bio"
-              value={user.bio}
-              onChange={handleInputChange}
               rows={3}
+              {...form.register('bio')}
               className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
               placeholder="Tell us a little about yourself"
             />
           </div>
+          <div className="pt-4" />
+          </form>
         </SettingsCard.Content>
         <SettingsCard.Footer>
-          <Button onClick={handleProfileUpdate} className="ml-auto">
-            Save Profile
+          <Button onClick={handleProfileUpdate} className="ml-auto" disabled={updateMutation.isPending}>
+            {updateMutation.isPending ? 'Saving…' : 'Save Profile'}
           </Button>
         </SettingsCard.Footer>
       </SettingsCard>
@@ -183,7 +189,7 @@ export default function AccountSettingsPage() {
               <div>
                 <p className="font-medium">GitLab</p>
                 <p className="text-sm text-muted-foreground">
-                  Connected as @{user.name.toLowerCase().replace(" ", "_")}
+                  Connected as @{(profile?.name || '').toLowerCase().replace(/\s+/g, "_")}
                 </p>
               </div>
             </div>
@@ -196,7 +202,7 @@ export default function AccountSettingsPage() {
               <AtSign className="h-6 w-6 mr-3" />
               <div>
                 <p className="font-medium">Google</p>
-                <p className="text-sm text-muted-foreground">Connected as {user.email}</p>
+                <p className="text-sm text-muted-foreground">Connected as {authUser?.email}</p>
               </div>
             </div>
             <Button variant="destructiveOutline" size="sm">
@@ -223,7 +229,7 @@ export default function AccountSettingsPage() {
       <ChangeEmailModal
         isOpen={isChangeEmailModalOpen}
         onClose={() => setIsChangeEmailModalOpen(false)}
-        currentEmail={user.email}
+        currentEmail={authUser?.email || ''}
       />
       <ResetPasswordModal isOpen={isResetPasswordModalOpen} onClose={() => setIsResetPasswordModalOpen(false)} />
       <DeleteAccountModal isOpen={isDeleteAccountModalOpen} onClose={() => setIsDeleteAccountModalOpen(false)} />

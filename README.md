@@ -1,30 +1,45 @@
-# ListlessApp
+# Listless - AI-Powered Task Management
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+An intelligent task management application built with Next.js, TypeScript, and Supabase, featuring AI-powered auto-tagging and smart organization.
 
 [![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/joshsmiths1800-gmailcoms-projects/v0-sidebar-07)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/ix7QG8rPXyW)
+[![Built with Next.js](https://img.shields.io/badge/Built%20with-Next.js-black?style=for-the-badge&logo=next.js)](https://nextjs.org)
 
-## Overview
+## Repository Structure
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+This repository follows a standard Git workflow with two main branches:
 
-## Deployment
+- **`main`** - Stable production branch (default branch)
+- **`develop`** - Active development branch (target for new features and fixes)
 
-Your project is live at:
+### Development Workflow
 
-**[https://vercel.com/joshsmiths1800-gmailcoms-projects/v0-sidebar-07](https://vercel.com/joshsmiths1800-gmailcoms-projects/v0-sidebar-07)**
+1. **Feature Development**: Create feature branches from `develop`
+2. **Pull Requests**: Submit PRs to merge into `develop` branch
+3. **Testing**: All changes are tested in the `develop` branch
+4. **Production**: Stable releases are merged from `develop` to `main`
 
-## Build your app
+## Features
 
-Continue building your app on:
+- **Smart Task Organization**: Hierarchical structure with Areas → Projects → Tasks
+- **AI-Powered Auto-Tagging**: Automatic tag suggestions using OpenAI embeddings
+- **Drag & Drop Interface**: Intuitive task reordering and organization
+- **Real-time Sync**: Live updates across all connected devices
+- **Comprehensive Search**: Vector-based semantic search for tasks
+- **Audit Trail**: Complete action history with undo/redo functionality
 
-**[https://v0.dev/chat/projects/ix7QG8rPXyW](https://v0.dev/chat/projects/ix7QG8rPXyW)**
+## Technology Stack
 
-## How It Works
+- **Frontend**: Next.js 14 with App Router, TypeScript, Tailwind CSS
+- **Backend**: Supabase (PostgreSQL with Row Level Security)
+- **AI Integration**: OpenAI GPT-4 and text-embedding-3-small
+- **Vector Search**: pgvector extension for semantic similarity
+- **Authentication**: Supabase Auth with email/password
+- **Deployment**: Vercel with automatic deployments
 
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+
+## Drag & Drop Performance Checklist
+
+We recently resolved a UI freeze during task reordering by optimizing our DnD Kit integration. For a summary of root causes, fixes, best practices, and a regression checklist, see the checklist here:
+
+- docs/DND_PERFORMANCE_CHECKLIST.md

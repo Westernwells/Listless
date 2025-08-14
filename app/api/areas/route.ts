@@ -14,6 +14,56 @@ import { recordAreaCreation } from '@/lib/api/action-history'
 import { createClient } from '@/lib/supabase/server'
 
 /**
+ * GET /api/areas - List all areas with their project lists
+ */
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  // Authenticate user
+  const authResult = await getAuthenticatedUser()
+  if (!authResult.success || !authResult.user) {
+    return authResult.error
+  }
+  const { user } = authResult
+
+  const supabase = await createClient()
+
+  try {
+    // Get all areas with their project lists
+    const { data: areas, error: fetchError } = await supabase
+      .from('areas')
+      .select(`
+        *,
+        project_lists (
+          id,
+          name,
+          description,
+          color,
+          sort_order,
+          is_archived
+        )
+      `)
+      .eq('user_id', user.id)
+      .eq('is_archived', false)
+      .order('sort_order', { ascending: true })
+
+    if (fetchError) {
+      return handleDatabaseError(fetchError)
+    }
+
+    return createSuccessResponse(
+      areas || [],
+      'Areas retrieved successfully',
+      HTTP_STATUS.OK
+    )
+  } catch (error) {
+    console.error('Error fetching areas:', error)
+    return createErrorResponse(
+      'Failed to fetch areas',
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    )
+  }
+})
+
+/**
  * POST /api/areas - Create a new area
  */
 export const POST = withErrorHandling(async (request: NextRequest) => {
