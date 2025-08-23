@@ -8,7 +8,7 @@
 [![Built with Next.js](https://img.shields.io/badge/Built%20with-Next.js-black?style=for-the-badge&logo=next.js)](https://nextjs.org)
 
 ### Key Features
-- **🧠 AI-Powered Auto-Tagging**: Automatic tag suggestions using OpenAI embeddings and GPT-4
+- **🧠 AI-Powered Auto-Tagging**: Automatic tag suggestions using vector embeddings (OpenAI 'text-embedding-3-small' model or Supabase 'pgvector' model) and GPT-5 LLM. 
 - **🏗️ Smart Task Organization**: Hierarchical structure with Areas → Projects → Tasks
 - **🔍 Vector-Based Search**: Comprehensive semantic search using pgvector
 - **🎯 Drag & Drop Interface**: Intuitive task reordering and organization
@@ -38,7 +38,7 @@ Currently in active development with comprehensive testing infrastructure and pr
 - **pgvector** - Vector similarity search for AI-powered features
 
 ### AI Integration
-- **OpenAI GPT-4** - Intelligent reasoning for auto-tagging and content analysis
+- **OpenAI GPT-5** - Intelligent reasoning for auto-tagging and content analysis
 - **text-embedding-3-small** - Semantic embeddings for vector search
 - **Hybrid AI Model** - Combines semantic similarity with intelligent reasoning
 
@@ -201,7 +201,7 @@ The `README-Documentation/` folder contains comprehensive developer onboarding r
 
 - **Production Deployment**: [Vercel Dashboard](https://vercel.com/joshsmiths1800-gmailcoms-projects/v0-sidebar-07)
 - **Database**: Supabase PostgreSQL with pgvector extension
-- **AI Integration**: OpenAI GPT-4 and text-embedding-3-small
+- **AI Integration**: OpenAI GPT-5 and text-embedding-3-small
 - **Testing**: Playwright end-to-end testing framework
 
 ## 📄 License
