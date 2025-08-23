@@ -174,7 +174,7 @@ export default function GeneralSettingsPage() {
       </SettingsCard>
 
       <div className="flex justify-end">
-        <Button onClick={handleSaveChanges}>Save Changes</Button>
+        <Button onClick={handleSaveChanges} size="xs">Save Changes</Button>
       </div>
     </div>
   )

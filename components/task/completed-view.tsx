@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { parseISO, isToday, isThisWeek, isThisMonth } from "date-fns"
-import { Filter, ArrowUpDown } from "lucide-react"
+import { Filter, ArrowUpDown, CircleCheckBig } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useCompletedTasks, useToggleTask } from "@/hooks/use-tasks"
+import { useCompletedTaskCount } from "@/hooks/use-task-counts"
 import { TaskList } from "./task-list"
 
 type SortOrder = "newest" | "oldest"
@@ -23,6 +24,9 @@ export function CompletedView() {
 
   // Get completed tasks using TanStack Query
   const { data: completedTasks = [], isLoading } = useCompletedTasks()
+
+  // Get dynamic task count for the header
+  const { data: completedCount = 0 } = useCompletedTaskCount()
 
   // Apply date filtering and sorting
   const processedTasks = useMemo(() => {
@@ -80,66 +84,92 @@ export function CompletedView() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Custom header with controls */}
-      <div className="flex items-center justify-between p-4 border-b bg-white">
-        <h1 className="text-xl font-semibold">Completed</h1>
-        <div className="flex items-center gap-2">
-          {/* Sort dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8">
-                <ArrowUpDown className="h-4 w-4 mr-1" />
-                Sort by: {getSortLabel(sortOrder)}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuGroup>
-                <DropdownMenuItem onClick={() => setSortOrder("newest")}>
-                  <ArrowUpDown className="h-4 w-4 mr-2" />
-                  Newest
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSortOrder("oldest")}>
-                  <ArrowUpDown className="h-4 w-4 mr-2" />
-                  Oldest
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+      {/* Header matching Today view styling */}
+      <div className="px-12 pt-12 pb-6">
+        <div className="grid grid-cols-3 items-center">
+          {/* Left: Title and count */}
+          <div className="justify-self-start">
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <CircleCheckBig className="h-5 w-5 text-muted-foreground" />
+              Completed
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              {completedCount} completed tasks
+            </p>
+          </div>
 
-          {/* Filter dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8">
-                <Filter className="h-4 w-4 mr-1" />
-                Filter by: {getFilterLabel(filterBy)}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuGroup>
-                <DropdownMenuItem onClick={() => setFilterBy("all")}>
-                  <Filter className="h-4 w-4 mr-2" />
-                  All time
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilterBy("today")}>
-                  <Filter className="h-4 w-4 mr-2" />
-                  Today
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilterBy("week")}>
-                  <Filter className="h-4 w-4 mr-2" />
-                  This Week
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setFilterBy("month")}>
-                  <Filter className="h-4 w-4 mr-2" />
-                  This Month
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Center: Empty space */}
+          <div></div>
+
+          {/* Right: Sort and Filter buttons */}
+          <div className="justify-self-end">
+            <div className="flex items-center gap-3">
+              {/* Sort dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="bg-black text-white hover:bg-black/90 h-7 px-2.5 text-xs gap-0"
+                  >
+                    <ArrowUpDown className="h-4 w-4 mr-1 text-white" />
+                    Sort by: {getSortLabel(sortOrder)}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem onClick={() => setSortOrder("newest")}>
+                      <ArrowUpDown className="h-4 w-4 mr-2" />
+                      Newest
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortOrder("oldest")}>
+                      <ArrowUpDown className="h-4 w-4 mr-2" />
+                      Oldest
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Filter dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="bg-black text-white hover:bg-black/90 h-7 px-2.5 text-xs gap-0"
+                  >
+                    <Filter className="h-4 w-4 mr-1 text-white" />
+                    Filter by: {getFilterLabel(filterBy)}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40">
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem onClick={() => setFilterBy("all")}>
+                      <Filter className="h-4 w-4 mr-2" />
+                      All time
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilterBy("today")}>
+                      <Filter className="h-4 w-4 mr-2" />
+                      Today
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilterBy("week")}>
+                      <Filter className="h-4 w-4 mr-2" />
+                      This Week
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilterBy("month")}>
+                      <Filter className="h-4 w-4 mr-2" />
+                      This Month
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Use TaskList component for consistent layout */}
-      <div className="flex-1">
+      <div className="flex-1 overflow-auto w-full task-list-container pl-8 pt-4">
         <TaskList
           initialTasks={processedTasks}
           title="Completed"

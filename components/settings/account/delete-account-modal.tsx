@@ -120,6 +120,7 @@ export function DeleteAccountModal({ open, onOpenChange }: DeleteAccountModalPro
             <Button
               type="button"
               variant="outline"
+              size="xs"
               onClick={() => {
                 onOpenChange(false)
                 setConfirmationText("")
@@ -133,6 +134,7 @@ export function DeleteAccountModal({ open, onOpenChange }: DeleteAccountModalPro
             <Button
               type="submit"
               variant="destructive"
+              size="xs"
               disabled={isLoading || confirmationText !== "PERMANENTLY DELETE" || !password}
             >
               {isLoading ? "Deleting..." : "Delete My Account"}

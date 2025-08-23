@@ -99,6 +99,7 @@ export function ResetPasswordModal({ open, onOpenChange }: ResetPasswordModalPro
                   <Button
                     type="button"
                     variant="outline"
+                    size="xs"
                     onClick={() => {
                       onOpenChange(false)
                       setError(null)
@@ -111,6 +112,7 @@ export function ResetPasswordModal({ open, onOpenChange }: ResetPasswordModalPro
                   </Button>
                   <Button
                     type="submit"
+                    size="xs"
                     disabled={isLoading}
                     className="flex-1"
                   >
@@ -128,6 +130,7 @@ export function ResetPasswordModal({ open, onOpenChange }: ResetPasswordModalPro
                   onOpenChange(false)
                   setSuccess(null)
                 }}
+                size="xs"
                 className="w-full"
               >
                 Close

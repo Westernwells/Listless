@@ -127,7 +127,7 @@ export default function AccountSettingsPage() {
               <Label htmlFor="email">Email Address</Label>
               <div className="flex items-center space-x-2">
                 <Input id="email" name="email" type="email" value={authUser?.email || ''} disabled className="flex-grow" />
-                <Button variant="outline" size="sm" onClick={() => setIsChangeEmailModalOpen(true)}>
+                <Button variant="outline" size="xs" onClick={() => setIsChangeEmailModalOpen(true)}>
                   <Mail className="mr-2 h-4 w-4" /> Change
                 </Button>
               </div>
@@ -147,7 +147,7 @@ export default function AccountSettingsPage() {
           </form>
         </SettingsCard.Content>
         <SettingsCard.Footer>
-          <Button onClick={handleProfileUpdate} className="ml-auto" disabled={updateMutation.isPending}>
+          <Button onClick={handleProfileUpdate} className="ml-auto" size="xs" disabled={updateMutation.isPending}>
             {updateMutation.isPending ? 'Saving…' : 'Save Profile'}
           </Button>
         </SettingsCard.Footer>
@@ -159,7 +159,7 @@ export default function AccountSettingsPage() {
           <SettingsCard.Description>Manage your password and account security.</SettingsCard.Description>
         </SettingsCard.Header>
         <SettingsCard.Content>
-          <Button variant="outline" onClick={() => setIsResetPasswordModalOpen(true)}>
+          <Button variant="outline" size="xs" onClick={() => setIsResetPasswordModalOpen(true)}>
             <KeyRound className="mr-2 h-4 w-4" /> Reset Password
           </Button>
         </SettingsCard.Content>
@@ -179,7 +179,7 @@ export default function AccountSettingsPage() {
                 <p className="text-sm text-muted-foreground">Not connected</p>
               </div>
             </div>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="xs">
               Connect
             </Button>
           </div>
@@ -193,7 +193,7 @@ export default function AccountSettingsPage() {
                 </p>
               </div>
             </div>
-            <Button variant="destructiveOutline" size="sm">
+            <Button variant="destructiveOutline" size="xs">
               Disconnect
             </Button>
           </div>
@@ -205,7 +205,7 @@ export default function AccountSettingsPage() {
                 <p className="text-sm text-muted-foreground">Connected as {authUser?.email}</p>
               </div>
             </div>
-            <Button variant="destructiveOutline" size="sm">
+            <Button variant="destructiveOutline" size="xs">
               Disconnect
             </Button>
           </div>
@@ -220,7 +220,7 @@ export default function AccountSettingsPage() {
           </SettingsCard.Description>
         </SettingsCard.Header>
         <SettingsCard.Content>
-          <Button variant="destructive" onClick={() => setIsDeleteAccountModalOpen(true)}>
+          <Button variant="destructive" size="xs" onClick={() => setIsDeleteAccountModalOpen(true)}>
             <Trash2 className="mr-2 h-4 w-4" /> Delete My Account
           </Button>
         </SettingsCard.Content>

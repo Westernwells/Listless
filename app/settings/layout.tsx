@@ -86,7 +86,7 @@ export default function SettingsLayout({
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto">{children}</div>
+      <div className="flex-1 overflow-auto p-8">{children}</div>
     </div>
   )
 }
