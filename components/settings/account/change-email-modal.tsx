@@ -144,6 +144,7 @@ export function ChangeEmailModal({ open, onOpenChange, currentEmail }: ChangeEma
             <Button
               type="button"
               variant="outline"
+              size="xs"
               onClick={() => {
                 onOpenChange(false)
                 setNewEmail("")
@@ -156,7 +157,7 @@ export function ChangeEmailModal({ open, onOpenChange, currentEmail }: ChangeEma
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading || success !== null}>
+            <Button type="submit" size="xs" disabled={isLoading || success !== null}>
               {isLoading ? "Changing..." : "Change Email"}
             </Button>
           </DialogFooter>

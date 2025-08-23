@@ -46,10 +46,10 @@ export default function BillingSettingsPage() {
             <p className="text-sm text-muted-foreground">Expires 12/2028</p>
           </div>
           <div className="flex space-x-2">
-            <Button variant="outline" onClick={handleUpdatePayment}>
+            <Button variant="outline" size="xs" onClick={handleUpdatePayment}>
               <Edit3 className="mr-2 h-4 w-4" /> Update Payment Method
             </Button>
-            <Button variant="outline" onClick={handleAddPayment}>
+            <Button variant="outline" size="xs" onClick={handleAddPayment}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add New Payment Method
             </Button>
           </div>
@@ -110,7 +110,7 @@ export default function BillingSettingsPage() {
           <p>123 Main Street</p>
           <p>Anytown, CA 90210</p>
           <p>United States</p>
-          <Button variant="outline" className="mt-2" onClick={handleEditBillingAddress}>
+          <Button variant="outline" size="xs" className="mt-2" onClick={handleEditBillingAddress}>
             <Edit3 className="mr-2 h-4 w-4" /> Edit Billing Address
           </Button>
         </SettingsCard.Content>

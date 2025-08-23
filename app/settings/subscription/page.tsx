@@ -98,7 +98,7 @@ export default function SubscriptionSettingsPage() {
                   </li>
                 ))}
               </ul>
-              <Button className="w-full" onClick={() => handleChoosePlan(plan.name)} disabled={plan.disabledCta}>
+              <Button className="w-full" size="xs" onClick={() => handleChoosePlan(plan.name)} disabled={plan.disabledCta}>
                 {plan.cta}
               </Button>
             </div>
@@ -111,7 +111,7 @@ export default function SubscriptionSettingsPage() {
           <SettingsCard.Title>Manage Subscription</SettingsCard.Title>
         </SettingsCard.Header>
         <SettingsCard.Content>
-          <Button variant="destructive" onClick={handleCancelSubscription}>
+          <Button variant="destructive" size="xs" onClick={handleCancelSubscription}>
             Cancel Subscription
           </Button>
           <p className="text-sm text-muted-foreground mt-2">

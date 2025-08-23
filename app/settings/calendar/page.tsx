@@ -88,10 +88,10 @@ export default function CalendarSettingsPage() {
           <SettingsCard.Description>Link your external calendars to sync events and tasks.</SettingsCard.Description>
         </SettingsCard.Header>
         <SettingsCard.Content className="flex space-x-2">
-          <Button onClick={() => handleConnectCalendar("google")}>
+          <Button size="xs" onClick={() => handleConnectCalendar("google")}>
             <CalendarIcon className="mr-2 h-4 w-4" /> Connect Google Calendar
           </Button>
-          <Button onClick={() => handleConnectCalendar("outlook")}>
+          <Button size="xs" onClick={() => handleConnectCalendar("outlook")}>
             <CalendarIcon className="mr-2 h-4 w-4" /> Connect Outlook Calendar
           </Button>
         </SettingsCard.Content>
@@ -163,7 +163,7 @@ export default function CalendarSettingsPage() {
             </Select>
           </div>
           <div className="flex justify-end mt-4">
-            <Button onClick={handleSaveChanges}>Save Sync Settings</Button>
+            <Button size="xs" onClick={handleSaveChanges}>Save Sync Settings</Button>
           </div>
         </SettingsCard.Content>
       </SettingsCard>

@@ -11,6 +11,8 @@ import {
 import { createPortal } from "react-dom"
 import { TaskItem } from "./task-item"
 import { SortableTaskItem } from "./sortable-task-item"
+import { EmptyState } from "./empty-state"
+import { InlineAddTaskButton } from "./inline-add-task-button"
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import {
   Plus,
@@ -612,6 +614,28 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
                 </div>
               )}
               <div className="flex items-center gap-3">
+                {/* Add Task Button in Header - Hidden in completed view */}
+                {view !== 'completed' && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="bg-black text-white hover:bg-black/90 h-7 px-2.5 text-xs gap-0"
+                          onClick={handleAddTask}
+                          aria-label="Add new task"
+                        >
+                          <Plus className="h-4 w-4 mr-1 text-white" />
+                          Add Task
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <p>Add a new task (Space)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
                 <Search className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
                 <ListFilter className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
                 <Undo2 className="h-[18px] w-[18px] text-foreground/80 cursor-pointer hover:text-foreground transition-colors" />
@@ -633,6 +657,7 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
           handleTaskExpand={handleTaskExpand}
           handleTaskSelect={handleTaskSelect}
           handleContextMenuAction={handleContextMenuAction}
+          handleAddTask={handleAddTask}
           editingId={editingId}
           setEditingId={setEditingId}
           selectedTaskIds={selectedTaskIds}
@@ -652,25 +677,7 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
         position={datePickerPosition}
       />
 
-      {/* Floating Add Task button with tooltip - Hidden in completed view */}
-      {view !== 'completed' && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                className="absolute bottom-6 right-6 bg-black text-white rounded-[6px] hover:bg-black/90 h-9 px-3"
-                onClick={handleAddTask}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add Task
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left">
-              <p>Add a new task (Space)</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
+
 
       {/* Tag Selector Dialog */}
       <TagSelectorDialog
@@ -712,6 +719,7 @@ function TaskListContent({
   handleTaskExpand,
   handleTaskSelect,
   handleContextMenuAction,
+  handleAddTask,
   editingId,
   setEditingId,
   selectedTaskIds,
@@ -729,6 +737,7 @@ function TaskListContent({
   handleTaskExpand: (taskId: string) => void
   handleTaskSelect: (id: string, event: React.MouseEvent) => void
   handleContextMenuAction: (action: string) => void
+  handleAddTask: () => void
   editingId: string | null
   setEditingId: (id: string) => void
   selectedTaskIds: Set<string>
@@ -737,6 +746,16 @@ function TaskListContent({
   activeId: string | null
   isMultiDragging: boolean
 }) {
+  // Show empty state when no tasks
+  if (tasks.length === 0) {
+    return (
+      <div className="w-full">
+        <InlineAddTaskButton onClick={handleAddTask} position="top" />
+        <EmptyState />
+      </div>
+    )
+  }
+
   if (!isClient) {
     // Server-side fallback without drag and drop
     return (
@@ -770,6 +789,7 @@ function TaskListContent({
             <TaskContextMenu handleContextMenuAction={handleContextMenuAction} />
           </ContextMenu>
         ))}
+        <InlineAddTaskButton onClick={handleAddTask} position="bottom" />
       </div>
     )
   }
@@ -809,6 +829,8 @@ function TaskListContent({
             </ContextMenu>
             ))}
           </SortableContext>
+
+          <InlineAddTaskButton onClick={handleAddTask} position="bottom" />
 
           {/* Bottom drop area that integrates with DnD Kit */}
           <BottomDropArea />
