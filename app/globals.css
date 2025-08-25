@@ -551,35 +551,41 @@
     margin-left: 24px !important; /* Align with the title text, accounting for checkbox */
   }
 
-  /* Animation for expanded task view */
-  @keyframes drawer-in {
+  /* Animation for expanded task view - single-stage smooth transitions using scale and opacity */
+  @keyframes expanded-in {
     from {
-      max-height: 0;
       opacity: 0;
+      transform: scaleY(0) translateY(-10px);
+      transform-origin: top;
     }
     to {
-      max-height: 500px;
       opacity: 1;
+      transform: scaleY(1) translateY(0);
+      transform-origin: top;
     }
   }
 
-  @keyframes drawer-out {
+  @keyframes expanded-out {
     from {
-      max-height: 500px;
       opacity: 1;
+      transform: scaleY(1) translateY(0);
+      transform-origin: top;
     }
     to {
-      max-height: 0;
       opacity: 0;
+      transform: scaleY(0) translateY(-10px);
+      transform-origin: top;
     }
   }
 
-  .animate-drawer-in {
-    animation: drawer-in 0.3s ease-out forwards;
+  .animate-expanded-in {
+    animation: expanded-in 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    will-change: transform, opacity;
   }
 
-  .animate-drawer-out {
-    animation: drawer-out 0.3s ease-in forwards;
+  .animate-expanded-out {
+    animation: expanded-out 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    will-change: transform, opacity;
   }
 
   /* Prevent notes field from getting auto-focus */
@@ -762,33 +768,38 @@
   width: 100% !important;
 }
 
-.fixed-calendar .rdp-head_row,
-.fixed-calendar .rdp-row {
+/* Use higher specificity to override Shadcn UI flex layout */
+.fixed-calendar .rdp-table .rdp-head_row,
+.fixed-calendar .rdp-table .rdp-row {
   display: grid !important;
   grid-template-columns: repeat(7, 1fr) !important;
   width: 100% !important;
+  margin-top: 0 !important; /* Override mt-2 from Shadcn */
 }
 
-.fixed-calendar .rdp-head_cell,
-.fixed-calendar .rdp-cell {
+/* Use higher specificity for cells */
+.fixed-calendar .rdp-table .rdp-head_cell,
+.fixed-calendar .rdp-table .rdp-cell {
   width: 40px !important;
   height: 40px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
+  position: relative !important; /* Ensure proper positioning */
 }
 
-.fixed-calendar .rdp-head_cell {
+.fixed-calendar .rdp-table .rdp-head_cell {
   height: 24px !important;
 }
 
-.fixed-calendar .rdp-day {
+.fixed-calendar .rdp-table .rdp-day {
   width: 40px !important;
   height: 40px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   margin: 0 !important;
+  border-radius: 6px !important; /* Ensure proper border radius */
 }
 
 .fixed-calendar .rdp-nav {

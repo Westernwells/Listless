@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { Flag } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
@@ -11,6 +12,7 @@ interface PrioritySelectorProps {
   onOpenChange: (open: boolean) => void
   selectedPriority: string | null | undefined
   onPriorityChange: (priority: string | null) => void
+  triggerElement?: HTMLElement | null
 }
 
 // Priority options with their colors
@@ -22,17 +24,70 @@ const priorities = [
   { value: null, label: "No Priority", color: "#9e9e9e" }, // Gray
 ]
 
-export function PrioritySelector({ open, onOpenChange, selectedPriority, onPriorityChange }: PrioritySelectorProps) {
-  const triggerRef = React.useRef<HTMLButtonElement>(null)
+export function PrioritySelector({ open, onOpenChange, selectedPriority, onPriorityChange, triggerElement }: PrioritySelectorProps) {
+  const [position, setPosition] = React.useState({ x: 0, y: 0 })
+  const containerRef = React.useRef<HTMLDivElement>(null)
 
-  return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
-        <Button ref={triggerRef} className="hidden">
-          Hidden Trigger
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-48 p-1" align="end">
+  // Update position when the popover opens
+  React.useEffect(() => {
+    if (open && triggerElement) {
+      const rect = triggerElement.getBoundingClientRect()
+      setPosition({
+        x: rect.left,
+        y: rect.bottom + window.scrollY
+      })
+    }
+  }, [open, triggerElement])
+
+  // Handle click outside to close the selector
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        onOpenChange(false)
+      }
+    }
+
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [open, onOpenChange])
+
+  // Handle click outside to close
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node) &&
+          triggerElement && !triggerElement.contains(event.target as Node)) {
+        onOpenChange(false)
+      }
+    }
+
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [open, onOpenChange, triggerElement])
+
+  if (!open) return null
+
+  // Use portal to render outside any scrollable containers
+  return typeof document !== "undefined" ? createPortal(
+    <div
+      ref={containerRef}
+      className="fixed z-50 bg-white rounded-lg shadow-lg border border-border"
+      style={{
+        left: position.x,
+        top: position.y,
+        width: "192px" // w-48 equivalent
+      }}
+    >
+      <div className="p-1">
         {priorities.map((priority) => (
           <div
             key={priority.value || "none"}
@@ -53,7 +108,8 @@ export function PrioritySelector({ open, onOpenChange, selectedPriority, onPrior
             <span className="text-sm">{priority.label}</span>
           </div>
         ))}
-      </PopoverContent>
-    </Popover>
-  )
+      </div>
+    </div>,
+    document.body
+  ) : null
 }

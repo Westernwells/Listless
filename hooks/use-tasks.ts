@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { taskService, FrontendTask } from '@/lib/api/task-service'
+import { taskService, FrontendTask, FrontendTaskTag } from '@/lib/api/task-service'
 import { toast } from '@/hooks/use-toast'
+import { useAppBehaviorSettings } from '@/hooks/use-app-behavior-settings'
 import { taskCountQueryKeys } from '@/hooks/use-task-counts'
 
 /**
@@ -25,7 +26,7 @@ export interface Task {
   deferDate?: string
   flagged?: boolean
   priority?: string | null
-  tags?: string[]
+  tags?: FrontendTaskTag[]
   notes?: string
   completedAt?: string
   isTrashed?: boolean
@@ -624,6 +625,7 @@ export function useReorderTasks() {
  */
 export function useToggleTask() {
   const queryClient = useQueryClient()
+  const { shouldKeepCompletedTaskInOriginalView } = useAppBehaviorSettings()
 
   return useMutation({
     mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
@@ -691,8 +693,21 @@ export function useToggleTask() {
               } else {
                 // For main tasks cache (incomplete tasks)
                 if (completed) {
-                  // Remove task from main cache if being completed
-                  return old.filter(task => task.id !== id)
+                  // Check if we should keep completed task in original view
+                  const completedAt = new Date().toISOString()
+                  const shouldKeepInView = shouldKeepCompletedTaskInOriginalView(completedAt)
+
+                  if (shouldKeepInView) {
+                    // Keep task in original view but mark as completed
+                    return old.map(task =>
+                      task.id === id
+                        ? { ...task, checked: true, completedAt }
+                        : task
+                    )
+                  } else {
+                    // Remove task from main cache if being completed (original behavior)
+                    return old.filter(task => task.id !== id)
+                  }
                 } else {
                   // Add task back to main cache if being uncompleted, or update if already there
                   const taskExists = old.some(task => task.id === id)
@@ -761,8 +776,19 @@ export function useToggleTask() {
               } else {
                 // For main tasks cache (incomplete tasks)
                 if (variables.completed) {
-                  // Remove task from main cache
-                  return old.filter(task => task.id !== variables.id)
+                  // Check if we should keep completed task in original view
+                  const shouldKeepInView = shouldKeepCompletedTaskInOriginalView(mappedTask.completedAt)
+
+                  if (shouldKeepInView) {
+                    // Keep task in original view but mark as completed
+                    const exists = old.some(task => task.id === variables.id)
+                    return exists
+                      ? old.map(task => task.id === variables.id ? mappedTask : task)
+                      : [...old, mappedTask]
+                  } else {
+                    // Remove task from main cache (original behavior)
+                    return old.filter(task => task.id !== variables.id)
+                  }
                 } else {
                   // Add or update task in main cache
                   const exists = old.some(task => task.id === variables.id)

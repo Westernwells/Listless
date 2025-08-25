@@ -105,10 +105,35 @@ export const AreaIdSchema = z.object({
   id: z.string().uuid('Invalid area ID format'),
 })
 
+// Tag validation schemas
+export const CreateTagSchema = z.object({
+  name: z.string().min(1, 'Tag name is required').max(50, 'Tag name too long'),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid color format').default('#6366f1'),
+})
+
+export const UpdateTagSchema = z.object({
+  name: z.string().min(1, 'Tag name is required').max(50, 'Tag name too long').optional(),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid color format').optional(),
+})
+
+export const TagIdSchema = z.object({
+  id: z.string().uuid('Invalid tag ID format'),
+})
+
+export const AddTagToTaskSchema = z.object({
+  tag_id: z.string().uuid('Invalid tag ID format'),
+  is_ai_suggested: z.boolean().default(false),
+  confidence_score: z.number().min(0).max(1).optional(),
+})
+
+export const RemoveTagFromTaskSchema = z.object({
+  tag_id: z.string().uuid('Invalid tag ID format'),
+})
+
 // Action history entry schema for undo/redo functionality
 export const ActionHistorySchema = z.object({
   action_type: z.enum(['create', 'update', 'delete', 'restore', 'duplicate', 'convert', 'reorder']),
-  entity_type: z.enum(['task', 'project_list', 'area']),
+  entity_type: z.enum(['task', 'project_list', 'area', 'tag']),
   entity_id: z.string().uuid(),
   old_data: z.record(z.any()).optional(),
   new_data: z.record(z.any()).optional(),

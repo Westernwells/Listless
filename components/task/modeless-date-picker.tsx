@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { Calendar } from "@/components/ui/calendar"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
@@ -95,7 +96,8 @@ export function ModelessDatePicker({ open, onClose, onSelect, title, position, i
 
   const pos = calculatePosition()
 
-  return (
+  // Use portal to render outside any scrollable containers
+  return typeof document !== "undefined" ? createPortal(
     <div
       ref={containerRef}
       className="fixed z-50 bg-white rounded-lg shadow-lg border border-border date-picker-container"
@@ -123,6 +125,7 @@ export function ModelessDatePicker({ open, onClose, onSelect, title, position, i
           fixedWeeks
         />
       </div>
-    </div>
-  )
+    </div>,
+    document.body
+  ) : null
 }
