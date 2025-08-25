@@ -1,11 +1,11 @@
 "use client"
-import { useState, useEffect, useRef } from "react"
-import type React from "react"
+import React, { useState, useEffect, useRef } from "react"
 
 import { X, CalendarClock, Tag, Flag, Calendar } from "lucide-react"
 import { format, differenceInDays } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
@@ -45,6 +45,8 @@ export function ExpandedTaskView({
   const containerRef = useRef<HTMLDivElement>(null)
   const notesRef = useRef<HTMLTextAreaElement>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
+  const priorityButtonRef = useRef<HTMLButtonElement>(null)
+  const tagButtonRef = useRef<HTMLButtonElement>(null)
 
   // Handle click outside to close the expanded view
   useEffect(() => {
@@ -108,7 +110,9 @@ export function ExpandedTaskView({
 
   // Handle tag selection
   const handleTagsChange = (tags: string[]) => {
-    onUpdateTask(task.id, { tags })
+    // Convert tag names back to tag objects for consistency
+    // Note: The TagSelectorPopover now handles direct database operations when taskId is provided
+    // This callback is mainly for UI state management
     setIsTagSelectorOpen(false)
   }
 
@@ -130,25 +134,33 @@ export function ExpandedTaskView({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className={cn(
-        "relative bg-white rounded-lg shadow-md p-4 pt-6 mb-2 overflow-hidden",
-        isClosing ? "animate-drawer-out" : "animate-drawer-in",
-        "transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
-        className,
-      )}
-      data-state={isClosing ? "closing" : "open"}
-      data-expanded="true"
-    >
+    <>
+      <div
+        ref={containerRef}
+        className={cn(
+          "relative bg-white border border-gray-200 rounded-lg p-4 pt-3 mb-2 overflow-visible",
+          "mx-4", // Add horizontal margin to match screenshot
+          isClosing ? "animate-expanded-out" : "animate-expanded-in",
+          className,
+        )}
+        data-state={isClosing ? "closing" : "open"}
+        data-expanded="true"
+      >
       {/* Close button */}
       <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-6 w-6 rounded-full" onClick={onClose}>
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </Button>
 
-      {/* Title input - only visible in expanded view */}
-      {isEditing && setEditing && (
+      {/* Checkbox and Title row - matching collapsed state positioning */}
+      <div className="flex items-center gap-3 mb-3">
+        <Checkbox
+          checked={task.checked}
+          onCheckedChange={() => onToggleTask(task.id)}
+          className="flex-shrink-0 border-[#D5D6D9]"
+          onClick={(e) => e.stopPropagation()}
+        />
+
         <input
           ref={titleInputRef}
           type="text"
@@ -156,30 +168,31 @@ export function ExpandedTaskView({
           onChange={(e) => onTitleChange && onTitleChange(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              setEditing(false)
+              setEditing && setEditing(false)
             } else if (e.key === "Escape") {
-              setEditing(false)
+              setEditing && setEditing(false)
             }
           }}
-          onBlur={() => setEditing(false)}
-          className="w-full mb-2 bg-transparent border-none outline-none focus:ring-0 text-[16px] font-medium text-[#0F172A]"
+          onBlur={() => setEditing && setEditing(false)}
+          className="flex-1 bg-transparent border-none outline-none focus:ring-0 text-[14px] font-normal text-[#0F172A] placeholder-gray-400"
           style={{ fontFamily: "Inter, sans-serif" }}
+          placeholder="Task title"
         />
-      )}
+      </div>
 
       {/* Notes section - explicitly NOT auto-focused */}
       <Textarea
         ref={notesRef}
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
-        placeholder="Notes"
-        className="min-h-[100px] mb-4 resize-none border-none bg-transparent text-[14px] focus-visible:ring-0 p-0 mt-2 expanded-notes"
+        placeholder="Description"
+        className="min-h-[80px] mb-3 resize-none border-none bg-transparent text-[14px] focus-visible:ring-0 p-0 text-gray-600 placeholder-gray-400 ml-7"
         autoFocus={false} // Explicitly prevent auto-focus
         tabIndex={0} // Ensure it's tabbable but not auto-focused
       />
 
       {/* Information display area */}
-      <div className="mb-4 space-y-2">
+      <div className="mb-2 space-y-2 ml-7">
         {/* Tags */}
         {task.tags && task.tags.length > 0 && (
           <div className="flex flex-wrap gap-2">
@@ -209,59 +222,78 @@ export function ExpandedTaskView({
         )}
       </div>
 
-      {/* Action icons row */}
-      <div className="flex justify-end gap-2">
-        <TooltipProvider>
-          {/* Defer date icon */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => handleOpenDatePicker("defer", e)}>
-                <CalendarClock className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>When</p>
-            </TooltipContent>
-          </Tooltip>
+      {/* Action buttons row - compact layout */}
+      <div className="flex items-center justify-between pt-1 mt-1">
+        <div className="flex items-center gap-1">
+          {/* Date button */}
+          <Button
+            variant="ghost"
+            size="xs"
+            className="h-6 px-2 text-xs text-gray-600 hover:bg-gray-50"
+            onClick={(e) => handleOpenDatePicker("due", e)}
+          >
+            <Calendar className="h-3 w-3 mr-0.5" />
+            Date
+          </Button>
 
-          {/* Due date icon */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => handleOpenDatePicker("due", e)}>
-                <Calendar className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Set Due Date</p>
-            </TooltipContent>
-          </Tooltip>
+          {/* Priority button */}
+          <Button
+            ref={priorityButtonRef}
+            variant="ghost"
+            size="xs"
+            className="h-6 px-2 text-xs text-gray-600 hover:bg-gray-50"
+            onClick={() => setIsPrioritySelectorOpen(true)}
+          >
+            <Flag className="h-3 w-3 mr-0.5" />
+            Priority
+          </Button>
 
-          {/* Tag icon */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsTagSelectorOpen(true)}>
-                <Tag className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Add Tags</p>
-            </TooltipContent>
-          </Tooltip>
+          {/* Tags button (renamed from Reminders) */}
+          <Button
+            ref={tagButtonRef}
+            variant="ghost"
+            size="xs"
+            className="h-6 px-2 text-xs text-gray-600 hover:bg-gray-50"
+            onClick={() => setIsTagSelectorOpen(true)}
+          >
+            <Tag className="h-3 w-3 mr-0.5" />
+            Tags
+          </Button>
 
-          {/* Priority flag icon */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsPrioritySelectorOpen(true)}>
-                <Flag className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Set Priority</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+          {/* More options button */}
+          <Button
+            variant="ghost"
+            size="xs"
+            className="h-6 px-1.5 text-xs text-gray-600 hover:bg-gray-50"
+          >
+            •••
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-1">
+          {/* Cancel button */}
+          <Button
+            variant="ghost"
+            size="xs"
+            className="h-6 px-2 text-xs text-gray-600 hover:bg-gray-50"
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+
+          {/* Save button (renamed from Add task, changed to purple) */}
+          <Button
+            size="xs"
+            className="h-6 px-2 text-xs bg-primary hover:bg-primary/90 text-primary-foreground"
+            onClick={onClose}
+          >
+            Save
+          </Button>
+        </div>
+      </div>
       </div>
 
+      {/* Dialogs rendered outside the animated container to avoid transform stacking context issues */}
       {/* Date picker */}
       {isDatePickerOpen && (
         <ModelessDatePicker
@@ -286,8 +318,10 @@ export function ExpandedTaskView({
       <TagSelectorPopover
         open={isTagSelectorOpen}
         onOpenChange={setIsTagSelectorOpen}
-        selectedTags={task.tags || []}
+        selectedTags={task.tags?.map(tag => typeof tag === 'string' ? tag : tag.name) || []}
         onTagsChange={handleTagsChange}
+        triggerElement={tagButtonRef.current}
+        taskId={task.id}
       />
 
       {/* Priority selector */}
@@ -296,7 +330,8 @@ export function ExpandedTaskView({
         onOpenChange={setIsPrioritySelectorOpen}
         selectedPriority={task.priority}
         onPriorityChange={handlePriorityChange}
+        triggerElement={priorityButtonRef.current}
       />
-    </div>
+    </>
   )
 }

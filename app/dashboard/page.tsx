@@ -12,6 +12,8 @@ import { TaskProvider, useTaskContext } from "@/components/task/task-context"
 import { SearchDialog } from "@/components/search-dialog"
 import { DragContextProvider } from "../../components/task/drag-context"
 import { ScheduledView } from "@/components/task/scheduled-view"
+import { SettingsView } from "@/components/settings/settings-view"
+import { TagsView } from "@/components/tags/tags-view"
 import { useRequireAuth } from "@/lib/auth/context"
 import { DragDropTest } from "@/components/test/drag-drop-test"
 
@@ -33,10 +35,16 @@ function TaskContent() {
       return <TrashView />
     case "scheduled":
       return <ScheduledView />
+    case "settings":
+      return <SettingsView />
     case "list":
       // Check if this is the completed view
       if (activeListId === "completed") {
         return <CompletedView />
+      }
+      // Check if this is the tags view
+      if (activeListId === "tags") {
+        return <TagsView />
       }
       // Check if this is a project view
       if (projects && projects[activeListId]) {

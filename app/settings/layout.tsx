@@ -3,7 +3,7 @@
 import type React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ArrowLeft, User, Settings, CreditCard, DollarSign, Calendar } from "lucide-react"
+import { ArrowLeft, User, Settings, CreditCard, DollarSign, Calendar, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
@@ -17,6 +17,11 @@ const settingsNavItems = [
     title: "General",
     href: "/settings/general",
     icon: Settings,
+  },
+  {
+    title: "App Behavior",
+    href: "/settings/behavior",
+    icon: Zap,
   },
   {
     title: "Subscription",

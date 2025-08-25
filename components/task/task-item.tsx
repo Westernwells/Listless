@@ -83,20 +83,16 @@ export function TaskItem({
   // Handle animation state when expanded state changes
   useEffect(() => {
     if (!isExpanded && isClosing) {
-      // Set a timeout to match the animation duration
+      // Set a timeout to match the animation duration (250ms)
       const timer = setTimeout(() => {
         setIsClosing(false)
-      }, 500) // Match the animation duration in CSS
+      }, 250) // Match the animation duration in CSS
       return () => clearTimeout(timer)
     }
 
-    // When task is expanded, set it to editing mode after a short delay
-    // to allow the animation to start
+    // When task is expanded, set it to editing mode immediately for snappy response
     if (isExpanded && !isClosing) {
-      const timer = setTimeout(() => {
-        setLocalIsEditing(true)
-      }, 50)
-      return () => clearTimeout(timer)
+      setLocalIsEditing(true)
     }
   }, [isExpanded, isClosing])
 
@@ -140,12 +136,8 @@ export function TaskItem({
     if (isExpanded) {
       setIsClosing(true)
       setLocalIsEditing(false)
-      // Use requestAnimationFrame for better performance instead of setTimeout
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          onExpand()
-        }, 500) // Match the animation duration
-      })
+      // Trigger state change immediately - parent will handle timing
+      onExpand()
     } else {
       onExpand()
     }
@@ -179,106 +171,9 @@ export function TaskItem({
 
   return (
     <>
-      <div
-        ref={taskRef}
-        className={cn(
-          "flex items-center gap-3 px-4 h-[34px] bg-background relative rounded-md transition-colors duration-200 task-item cursor-default",
-          isDragging ? "task-dragging" : "",
-          checked ? "opacity-70" : "",
-          isSelected ? "task-selected" : "",
-          isContextMenuOpen ? "bg-gray-300" : "", // Darker background when context menu is open
-          isExpanded ? "expanded-task-item z-10" : "",
-          className,
-        )}
-        onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
-        tabIndex={0}
-        role="listitem"
-        aria-selected={isSelected}
-        data-state={isSelected ? "selected" : ""}
-        data-selected={isSelected ? "true" : "false"}
-        data-context-menu={isContextMenuOpen ? "open" : "closed"}
-        data-expanded={isExpanded ? "true" : "false"}
-        data-task-id={id}
-        data-testid="task-item"
-      >
-        {/* Checkbox - no static drag handle */}
-        <div onClick={(e) => e.stopPropagation()}>
-          <Checkbox
-            id={`task-${id}`}
-            checked={checked}
-            onCheckedChange={onToggle}
-            aria-label={checked ? `Mark ${content} as incomplete` : `Mark ${content} as complete`}
-            className={cn("border-[#D5D6D9]", isExpanded ? "expanded-checkbox" : "")}
-          />
-        </div>
-
-        {localIsEditing && isExpanded ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={handleBlur}
-            onClick={(e) => e.stopPropagation()}
-            className={cn(
-              "flex-1 bg-transparent border-none outline-none focus:ring-0 text-[14px] font-normal text-[#0F172A]",
-              isExpanded ? "expanded-title-input" : "",
-            )}
-            style={{ fontFamily: "Inter, sans-serif" }}
-          />
-        ) : (
-          <div
-            onClick={handleContentClick}
-            className={cn(
-              "flex-1 text-[14px] font-normal text-[#0F172A] truncate",
-              checked && "line-through text-muted-foreground",
-              isExpanded ? "expanded-title cursor-text" : "cursor-default",
-            )}
-            style={{ fontFamily: "Inter, sans-serif" }}
-            title={content} // Show full content on hover
-            data-testid="task-title"
-          >
-            {content}
-          </div>
-        )}
-
-        <div className={cn("flex items-center gap-2 ml-auto", isExpanded ? "expanded-task-actions" : "")}>
-          {flagged && <Flag className="h-4 w-4 text-destructive flex-shrink-0" />}
-
-          <Info className="h-4 w-4 text-blue-500 flex-shrink-0" />
-
-          <div className="flex gap-1 items-center">
-            {visibleTags.map((tag, index) => (
-              <Badge
-                key={index}
-                variant="outline"
-                className="text-[10px] px-1.5 py-0 h-4 truncate max-w-[60px]"
-                title={tag} // Show full tag on hover
-              >
-                {tag}
-              </Badge>
-            ))}
-            {hasMoreTags && (
-              <Badge
-                variant="outline"
-                className="text-[10px] px-1.5 py-0 h-4 min-w-[20px]"
-                title={tags.slice(MAX_VISIBLE_TAGS).join(", ")} // Show remaining tags on hover
-              >
-                ...
-              </Badge>
-            )}
-          </div>
-        </div>
-
-        {/* Bottom divider line that doesn't reach the edges */}
-        <div className="absolute bottom-0 left-4 right-4 h-[0.5px]" style={{ backgroundColor: "#E5E7EB" }}></div>
-      </div>
-
       {/* Render expanded view if task is expanded or closing */}
-      {(isExpanded || isClosing) && (
-        <div className="overflow-hidden">
+      {(isExpanded || isClosing) ? (
+        <div className="overflow-visible">
           <ExpandedTaskView
             task={{
               id,
@@ -287,6 +182,8 @@ export function TaskItem({
               dueDate,
               flagged,
               tags,
+              notes: "", // Add notes field
+              priority: null, // Add priority field
               // Add any other properties needed
             }}
             onClose={handleExpandToggle}
@@ -300,6 +197,103 @@ export function TaskItem({
             isEditing={localIsEditing}
             setEditing={(value) => setLocalIsEditing(value)}
           />
+        </div>
+      ) : (
+        /* Main task item - only render when not expanded */
+        <div
+          ref={taskRef}
+          className={cn(
+            "flex items-center gap-3 px-4 h-[34px] bg-background relative rounded-md transition-colors duration-200 task-item cursor-default",
+            isDragging ? "task-dragging" : "",
+            checked ? "opacity-70" : "",
+            isSelected ? "task-selected" : "",
+            isContextMenuOpen ? "bg-gray-300" : "", // Darker background when context menu is open
+            className,
+          )}
+          onClick={handleClick}
+          onDoubleClick={handleDoubleClick}
+          tabIndex={0}
+          role="listitem"
+          aria-selected={isSelected}
+          data-state={isSelected ? "selected" : ""}
+          data-selected={isSelected ? "true" : "false"}
+          data-context-menu={isContextMenuOpen ? "open" : "closed"}
+          data-expanded="false"
+          data-task-id={id}
+          data-testid="task-item"
+        >
+          {/* Checkbox - no static drag handle */}
+          <div onClick={(e) => e.stopPropagation()}>
+            <Checkbox
+              id={`task-${id}`}
+              checked={checked}
+              onCheckedChange={onToggle}
+              aria-label={checked ? `Mark ${content} as incomplete` : `Mark ${content} as complete`}
+              className="border-[#D5D6D9]"
+            />
+          </div>
+
+          {localIsEditing ? (
+            <input
+              ref={inputRef}
+              type="text"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onBlur={handleBlur}
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 bg-transparent border-none outline-none focus:ring-0 text-[14px] font-normal text-[#0F172A]"
+              style={{ fontFamily: "Inter, sans-serif" }}
+            />
+          ) : (
+            <div
+              onClick={handleContentClick}
+              className={cn(
+                "flex-1 text-[14px] font-normal text-[#0F172A] truncate",
+                checked && "line-through text-muted-foreground",
+                "cursor-default",
+              )}
+              style={{ fontFamily: "Inter, sans-serif" }}
+              title={content} // Show full content on hover
+              data-testid="task-title"
+            >
+              {content}
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 ml-auto">
+            {flagged && <Flag className="h-4 w-4 text-destructive flex-shrink-0" />}
+
+            <Info className="h-4 w-4 text-blue-500 flex-shrink-0" />
+
+            <div className="flex gap-1 items-center">
+              {visibleTags.map((tag, index) => (
+                <Badge
+                  key={typeof tag === 'string' ? index : tag.id}
+                  variant="outline"
+                  className="text-[10px] px-1.5 py-0 h-4 truncate max-w-[60px]"
+                  style={{
+                    borderColor: typeof tag === 'string' ? '#6366f1' : (tag.color || '#6366f1'),
+                    color: typeof tag === 'string' ? '#6366f1' : (tag.color || '#6366f1')
+                  }}
+                  title={typeof tag === 'string' ? tag : tag.name} // Show full tag on hover
+                >
+                  {typeof tag === 'string' ? tag : tag.name}
+                </Badge>
+              ))}
+              {hasMoreTags && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] px-1.5 py-0 h-4 min-w-[20px]"
+                  title={tags.slice(MAX_VISIBLE_TAGS).map(tag => typeof tag === 'string' ? tag : tag.name).join(", ")} // Show remaining tags on hover
+                >
+                  ...
+                </Badge>
+              )}
+            </div>
+          </div>
+
+
         </div>
       )}
     </>

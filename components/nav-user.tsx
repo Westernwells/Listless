@@ -17,6 +17,7 @@ import {
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar"
 import { Icons } from "@/components/ui/icons"
 import { useAuth } from "@/lib/auth/context"
+import { useTaskContext } from "@/components/task/task-context"
 import Link from "next/link"
 
 export function NavUser({
@@ -30,6 +31,7 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const { signOut } = useAuth()
+  const { setActiveListId } = useTaskContext()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   const handleLogout = async () => {
@@ -49,6 +51,10 @@ export function NavUser({
 
   const handlePrint = () => {
     window.print()
+  }
+
+  const handleSettingsClick = () => {
+    setActiveListId("settings")
   }
 
   const handleImportCSV = () => {
@@ -123,11 +129,9 @@ export function NavUser({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem asChild>
-                <Link href="/settings" className="flex items-center w-full cursor-pointer">
-                  <Settings className="mr-2 h-4 w-4" />
-                  <span>Settings</span>
-                </Link>
+              <DropdownMenuItem onClick={handleSettingsClick}>
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Settings</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handlePrint}>
                 <Printer className="mr-2 h-4 w-4" />

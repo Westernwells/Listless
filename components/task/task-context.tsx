@@ -211,6 +211,12 @@ const sampleAreas = {
   },
 }
 
+export interface TaskTag {
+  id: string
+  name: string
+  color?: string
+}
+
 export interface Task {
   id: string
   content: string
@@ -219,7 +225,7 @@ export interface Task {
   deferDate?: string
   flagged?: boolean
   priority?: string | null
-  tags?: string[]
+  tags?: TaskTag[]
   notes?: string
   completedAt?: string
   isTrashed?: boolean
@@ -241,7 +247,7 @@ export interface Area {
 }
 
 type TaskListId = string
-type ViewType = "list" | "scheduled" | "trash"
+type ViewType = "list" | "scheduled" | "trash" | "settings"
 
 type TaskContextType = {
   activeListId: TaskListId | null
@@ -712,6 +718,8 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       setCurrentView("trash")
     } else if (id === "scheduled") {
       setCurrentView("scheduled")
+    } else if (id === "settings") {
+      setCurrentView("settings")
     } else {
       setCurrentView("list")
     }

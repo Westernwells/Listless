@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
-import { Calendar, CheckCircle, Clock, Inbox, PauseCircle, Trash2, Search } from "lucide-react"
+import { Calendar, CheckCircle, Clock, Inbox, PauseCircle, Trash2, Search, Tag } from "lucide-react"
 
 import { NavMain } from "./nav-main"
 import { NavProjects } from "./nav-projects"
@@ -39,6 +39,11 @@ const staticData = {
       title: "Completed",
       url: "#",
       icon: CheckCircle,
+    },
+    {
+      title: "Tags",
+      url: "#",
+      icon: Tag,
     },
   ],
   weeklySection: {

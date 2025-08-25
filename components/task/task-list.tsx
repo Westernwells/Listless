@@ -223,16 +223,16 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [tasks, selectedTaskIds, editingId, expandedTaskId, setSelectedTaskIds])
 
-  // Handle closing animation completion
+  // Handle closing animation completion - clean up after animation delay
   useEffect(() => {
-    if (closingTaskId) {
+    if (closingTaskId && !expandedTaskId) {
+      // Clean up closing state after a brief delay to ensure animation completes
       const timer = setTimeout(() => {
-        setExpandedTaskId(null)
         setClosingTaskId(null)
-      }, 500) // Match animation duration
+      }, 50) // Small delay after expandedTaskId is cleared
       return () => clearTimeout(timer)
     }
-  }, [closingTaskId])
+  }, [closingTaskId, expandedTaskId])
 
   // Helper function to reset hover states on task items only
   const resetHoverStates = () => {
@@ -488,14 +488,18 @@ export function TaskList({ initialTasks, title = "Tasks", showHeader = true, vie
     if (expandedTaskId === taskId) {
       // Start closing animation
       setClosingTaskId(taskId)
-      // Immediately update the expanded state for a more responsive feel
-      setExpandedTaskId(null)
+      // Delay clearing the expanded state until after animation completes
+      setTimeout(() => {
+        setExpandedTaskId(null)
+      }, 250) // Match the CSS animation duration exactly
     } else {
       // If another task is expanded, close it first
       if (expandedTaskId) {
         setClosingTaskId(expandedTaskId)
-        // Immediately expand the new task for a more responsive feel
-        setExpandedTaskId(taskId)
+        // Delay clearing the previous expanded state and set new one
+        setTimeout(() => {
+          setExpandedTaskId(taskId)
+        }, 250) // Wait for previous task to finish closing
       } else {
         // No task is expanded, expand this one immediately
         setExpandedTaskId(taskId)

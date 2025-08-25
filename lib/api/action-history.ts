@@ -296,6 +296,65 @@ export async function recordAreaDeletion(
 }
 
 /**
+ * Records a tag creation action
+ */
+export async function recordTagCreation(
+  userId: string,
+  tagId: string,
+  tagData: Record<string, any>,
+  metadata?: Record<string, any>
+) {
+  return recordAction({
+    userId,
+    actionType: 'create',
+    entityType: 'tag',
+    entityId: tagId,
+    newData: tagData,
+    metadata,
+  })
+}
+
+/**
+ * Records a tag update action
+ */
+export async function recordTagUpdate(
+  userId: string,
+  tagId: string,
+  oldData: Record<string, any>,
+  newData: Record<string, any>,
+  metadata?: Record<string, any>
+) {
+  return recordAction({
+    userId,
+    actionType: 'update',
+    entityType: 'tag',
+    entityId: tagId,
+    oldData,
+    newData,
+    metadata,
+  })
+}
+
+/**
+ * Records a tag deletion action
+ */
+export async function recordTagDeletion(
+  userId: string,
+  tagId: string,
+  tagData: Record<string, any>,
+  metadata?: Record<string, any>
+) {
+  return recordAction({
+    userId,
+    actionType: 'delete',
+    entityType: 'tag',
+    entityId: tagId,
+    oldData: tagData,
+    metadata,
+  })
+}
+
+/**
  * Records a reorder operation action with enhanced error handling
  * This records the entire batch reorder as a single action for undo/redo
  */

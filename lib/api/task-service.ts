@@ -5,6 +5,13 @@
 
 import { createClient } from '@/lib/supabase/client'
 
+// Frontend Tag interface
+export interface FrontendTaskTag {
+  id: string
+  name: string
+  color?: string
+}
+
 // Frontend Task interface (what the UI expects)
 export interface FrontendTask {
   id: string
@@ -12,7 +19,7 @@ export interface FrontendTask {
   checked: boolean
   dueDate?: string
   flagged?: boolean
-  tags?: string[]
+  tags?: FrontendTaskTag[]
   priority?: 'low' | 'medium' | 'high'
   description?: string
   completedAt?: string
@@ -61,7 +68,11 @@ export const transformBackendToFrontend = (backendTask: BackendTask): FrontendTa
     checked: backendTask.completed,
     dueDate: backendTask.due_date,
     flagged: false, // This would need to be added to backend schema if needed
-    tags: backendTask.task_tags?.map(tt => tt.tags.name) || [],
+    tags: backendTask.task_tags?.map(tt => ({
+      id: tt.tags.id,
+      name: tt.tags.name,
+      color: tt.tags.color || '#6366f1'
+    })) || [],
     priority: backendTask.priority,
     description: backendTask.description,
     completedAt: backendTask.completed_at,
