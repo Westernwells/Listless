@@ -133,24 +133,13 @@ export function TagSelectorPopover({ open, onOpenChange, selectedTags, onTagsCha
   // Filter tags based on search query
   const filteredTags = availableTags.filter((tag) => tag.name.toLowerCase().includes(searchQuery.toLowerCase()))
 
-  // Toggle tag selection
-  const toggleTag = async (tagName: string) => {
-    const isCurrentlySelected = localSelectedTags.includes(tagName)
-
-    if (taskId) {
-      // Direct database operations when taskId is provided
-      const tag = availableTags.find(t => t.name === tagName)
-      if (tag) {
-        if (isCurrentlySelected) {
-          await removeTagFromTaskMutation.mutateAsync({ taskId, tagId: tag.id })
-        } else {
-          await addTagToTaskMutation.mutateAsync({ taskId, tagId: tag.id })
-        }
-      }
-    }
-
-    // Update local state
-    setLocalSelectedTags((prev) => (prev.includes(tagName) ? prev.filter((t) => t !== tagName) : [...prev, tagName]))
+  // Toggle tag selection (only update local state, don't save to database yet)
+  const toggleTag = (tagName: string) => {
+    setLocalSelectedTags((prev) =>
+      prev.includes(tagName)
+        ? prev.filter((t) => t !== tagName)
+        : [...prev, tagName]
+    )
   }
 
   // Create new tag from search query
@@ -169,9 +158,8 @@ export function TagSelectorPopover({ open, onOpenChange, selectedTags, onTagsCha
 
     try {
       const newTag = await createTagMutation.mutateAsync({ name: trimmedQuery })
-      if (newTag && taskId) {
-        // Automatically add the new tag to the task
-        await addTagToTaskMutation.mutateAsync({ taskId, tagId: newTag.id })
+      if (newTag) {
+        // Add the new tag to local selection (will be saved when Apply is clicked)
         setLocalSelectedTags(prev => [...prev, newTag.name])
       }
       setSearchQuery("")
@@ -182,8 +170,43 @@ export function TagSelectorPopover({ open, onOpenChange, selectedTags, onTagsCha
 
 
 
-  // Apply changes (for non-direct mode)
-  const handleApply = () => {
+  // Apply changes - save to database if taskId is provided
+  const handleApply = async () => {
+    let hasError = false
+
+    if (taskId) {
+      // Determine which tags to add and remove
+      const currentTagNames = selectedTags
+      const newTagNames = localSelectedTags
+
+      const tagsToAdd = newTagNames.filter(name => !currentTagNames.includes(name))
+      const tagsToRemove = currentTagNames.filter(name => !newTagNames.includes(name))
+
+      try {
+        // Remove tags that are no longer selected
+        for (const tagName of tagsToRemove) {
+          const tag = availableTags.find(t => t.name === tagName)
+          if (tag) {
+            await removeTagFromTaskMutation.mutateAsync({ taskId, tagId: tag.id })
+          }
+        }
+
+        // Add newly selected tags
+        for (const tagName of tagsToAdd) {
+          const tag = availableTags.find(t => t.name === tagName)
+          if (tag) {
+            await addTagToTaskMutation.mutateAsync({ taskId, tagId: tag.id })
+          }
+        }
+      } catch (error) {
+        console.error('Failed to update tags:', error)
+        hasError = true
+        // Reset local state on error
+        setLocalSelectedTags(selectedTags)
+      }
+    }
+
+    // Always close the dialog and call onTagsChange, even if there was an error
     onTagsChange(localSelectedTags)
     onOpenChange(false)
   }
@@ -241,12 +264,12 @@ export function TagSelectorPopover({ open, onOpenChange, selectedTags, onTagsCha
                   key={tag.id}
                   className={cn(
                     "flex items-center px-3 py-1.5 cursor-pointer hover:bg-gray-100",
-                    localSelectedTags.includes(tag.name) && "bg-gray-50",
+                    localSelectedTags.includes(tag.name) && "bg-blue-50 border-l-2 border-blue-500",
                   )}
                   onClick={() => toggleTag(tag.name)}
                 >
                   <div className="w-5 h-5 mr-2 flex items-center justify-center">
-                    {localSelectedTags.includes(tag.name) && <Check className="h-4 w-4" />}
+                    {localSelectedTags.includes(tag.name) && <Check className="h-4 w-4 text-blue-600" />}
                   </div>
                   <div className="flex items-center gap-2">
                     <div

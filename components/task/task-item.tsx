@@ -9,6 +9,7 @@ import { Flag, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ExpandedTaskView } from "./expanded-task-view"
 import { useTaskContext } from "./task-context"
+import { useTaskTags } from "@/hooks/use-tags"
 
 export interface TaskItemProps {
   id: string
@@ -55,6 +56,12 @@ export function TaskItem({
   const taskRef = useRef<HTMLDivElement>(null)
   const [isClosing, setIsClosing] = useState(false)
   const [localIsEditing, setLocalIsEditing] = useState(isEditing)
+
+  // Fetch real-time tag data for this task
+  const { data: taskTags = [] } = useTaskTags(id)
+
+  // Use real-time tag data if available, otherwise fall back to props
+  const displayTags = taskTags.length > 0 ? taskTags : tags
 
   // Maximum number of tags to display before showing ellipsis
   const MAX_VISIBLE_TAGS = 1
@@ -165,9 +172,17 @@ export function TaskItem({
     // If not expanded, let the click bubble up to trigger selection
   }, [isExpanded])
 
+  // Sort tags chronologically (newest first, then reverse for display so newest is on right)
+  const sortedTags = [...displayTags].sort((a, b) => {
+    // If tags have timestamps, sort by them; otherwise maintain original order
+    const aTime = typeof a === 'object' && a.created_at ? new Date(a.created_at).getTime() : 0
+    const bTime = typeof b === 'object' && b.created_at ? new Date(b.created_at).getTime() : 0
+    return aTime - bTime // Oldest first, so when we display left-to-right, newest is on right
+  })
+
   // Determine which tags to display and if we need an ellipsis
-  const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS)
-  const hasMoreTags = tags.length > MAX_VISIBLE_TAGS
+  const visibleTags = sortedTags.slice(0, MAX_VISIBLE_TAGS)
+  const hasMoreTags = sortedTags.length > MAX_VISIBLE_TAGS
 
   return (
     <>
@@ -181,7 +196,7 @@ export function TaskItem({
               checked,
               dueDate,
               flagged,
-              tags,
+              tags: displayTags,
               notes: "", // Add notes field
               priority: null, // Add priority field
               // Add any other properties needed
@@ -271,10 +286,9 @@ export function TaskItem({
                 <Badge
                   key={typeof tag === 'string' ? index : tag.id}
                   variant="outline"
-                  className="text-[10px] px-1.5 py-0 h-4 truncate max-w-[60px]"
+                  className="text-[10px] px-1.5 py-0 h-4 truncate max-w-[60px] border-none text-white font-medium"
                   style={{
-                    borderColor: typeof tag === 'string' ? '#6366f1' : (tag.color || '#6366f1'),
-                    color: typeof tag === 'string' ? '#6366f1' : (tag.color || '#6366f1')
+                    backgroundColor: typeof tag === 'string' ? '#6366f1' : (tag.color || '#6366f1'),
                   }}
                   title={typeof tag === 'string' ? tag : tag.name} // Show full tag on hover
                 >
@@ -284,10 +298,10 @@ export function TaskItem({
               {hasMoreTags && (
                 <Badge
                   variant="outline"
-                  className="text-[10px] px-1.5 py-0 h-4 min-w-[20px]"
-                  title={tags.slice(MAX_VISIBLE_TAGS).map(tag => typeof tag === 'string' ? tag : tag.name).join(", ")} // Show remaining tags on hover
+                  className="text-[10px] px-1.5 py-0 h-4 min-w-[20px] bg-gray-100 text-gray-600 border-none"
+                  title={sortedTags.slice(MAX_VISIBLE_TAGS).map(tag => typeof tag === 'string' ? tag : tag.name).join(", ")} // Show remaining tags on hover
                 >
-                  ...
+                  +{sortedTags.length - MAX_VISIBLE_TAGS}
                 </Badge>
               )}
             </div>

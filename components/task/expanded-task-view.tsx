@@ -13,6 +13,7 @@ import type { Task } from "./task-context"
 import { TagSelectorPopover } from "./tag-selector-popover"
 import { PrioritySelector } from "./priority-selector"
 import { ModelessDatePicker } from "./modeless-date-picker"
+import { useTaskTags } from "@/hooks/use-tags"
 
 interface ExpandedTaskViewProps {
   task: Task
@@ -48,19 +49,38 @@ export function ExpandedTaskView({
   const priorityButtonRef = useRef<HTMLButtonElement>(null)
   const tagButtonRef = useRef<HTMLButtonElement>(null)
 
+  // Fetch real-time tag data for this task
+  const { data: taskTags = [], refetch: refetchTaskTags } = useTaskTags(task.id)
+
   // Handle click outside to close the expanded view
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        onClose()
+      const target = event.target as Node
+
+      // Don't close if clicking inside the task container
+      if (containerRef.current && containerRef.current.contains(target)) {
+        return
       }
+
+      // Don't close if clicking on any of the open popovers/dialogs
+      if (isTagSelectorOpen || isPrioritySelectorOpen || isDatePickerOpen) {
+        // Check if the click is on a popover/dialog element
+        const clickedElement = target as Element
+        if (clickedElement.closest('[data-radix-popper-content-wrapper]') ||
+            clickedElement.closest('.fixed.z-50') ||
+            clickedElement.closest('[role="dialog"]')) {
+          return
+        }
+      }
+
+      onClose()
     }
 
     document.addEventListener("mousedown", handleClickOutside)
     return () => {
       document.removeEventListener("mousedown", handleClickOutside)
     }
-  }, [onClose])
+  }, [onClose, isTagSelectorOpen, isPrioritySelectorOpen, isDatePickerOpen])
 
   // Update task when notes change
   useEffect(() => {
@@ -110,9 +130,9 @@ export function ExpandedTaskView({
 
   // Handle tag selection
   const handleTagsChange = (tags: string[]) => {
-    // Convert tag names back to tag objects for consistency
-    // Note: The TagSelectorPopover now handles direct database operations when taskId is provided
-    // This callback is mainly for UI state management
+    // The TagSelectorPopover handles direct database operations when taskId is provided
+    // After the mutation completes, refetch the task tags to ensure UI is up to date
+    refetchTaskTags()
     setIsTagSelectorOpen(false)
   }
 
@@ -193,17 +213,6 @@ export function ExpandedTaskView({
 
       {/* Information display area */}
       <div className="mb-2 space-y-2 ml-7">
-        {/* Tags */}
-        {task.tags && task.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {task.tags.map((tag, index) => (
-              <Badge key={index} variant="outline" className="bg-[#e8f5e9] text-[#2e7d32] border-none">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        )}
-
         {/* Defer date */}
         {task.deferDate && (
           <div className="flex items-center text-sm text-gray-600">
@@ -221,6 +230,26 @@ export function ExpandedTaskView({
           </div>
         )}
       </div>
+
+      {/* Dedicated tag display row - positioned above action buttons */}
+      {taskTags.length > 0 && (
+        <div className="mb-3 ml-7">
+          <div className="flex flex-wrap gap-2">
+            {taskTags.map((tag) => (
+              <Badge
+                key={tag.id}
+                variant="outline"
+                className="text-xs px-2 py-1 border-none text-white font-medium"
+                style={{
+                  backgroundColor: tag.color || '#6366f1',
+                }}
+              >
+                {tag.name}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Action buttons row - compact layout */}
       <div className="flex items-center justify-between pt-1 mt-1">
@@ -318,7 +347,7 @@ export function ExpandedTaskView({
       <TagSelectorPopover
         open={isTagSelectorOpen}
         onOpenChange={setIsTagSelectorOpen}
-        selectedTags={task.tags?.map(tag => typeof tag === 'string' ? tag : tag.name) || []}
+        selectedTags={taskTags.map(tag => tag.name)}
         onTagsChange={handleTagsChange}
         triggerElement={tagButtonRef.current}
         taskId={task.id}
